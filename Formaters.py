@@ -8,7 +8,7 @@ from github import GithubException
 from git import Repo
 from git.exc import GitError
 from github.GithubException import RateLimitExceededException, UnknownObjectException
-from rate_limiting import wait_for_reset_ratelimit
+from Rate_Limiter import wait_for_reset_ratelimit
 import tempfile
 from Logger import log
 

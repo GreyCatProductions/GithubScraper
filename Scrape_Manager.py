@@ -1,9 +1,6 @@
 import pandas as pd
 import os
 import traceback
-
-from tqdm import tqdm
-
 from Formaters import *
 from Logger import log
 
@@ -12,7 +9,7 @@ def write_csv(data, columns, filepath, sep=";"):
     df.to_csv(filepath, index=False, sep=sep)
     log("INFO", f"Saved CSV file: {filepath}")
 
-def process_organization(organization_name: str, clone_directory_path: str):
+def process_organization(organization_name: str, clone_directory_path: str, github_gmail):
     organization = get_organization(organization_name, github_gmail)
 
     repos = organization.get_repos(type="all")
@@ -89,28 +86,3 @@ def process_organization(organization_name: str, clone_directory_path: str):
     for key, columns in columns_mapping.items():
         csv_file = os.path.join(clone_directory_path, f"{key}.csv")
         write_csv(data[key], columns, csv_file)
-
-if __name__ == '__main__':
-    github_gmail = Github("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") # gmail.com
-
-    organizations = ["amzn", "groupon"]
-    # Übrige microsfot
-    # NASA: https://github.com/NASA
-    # ESA: https://github.com/ESA
-    # DLR: https://github.com/DLR-SC
-    # CNES: CNES (French National Centre for Space Studies)
-    # ISRO: https://github.com/orgs/isro/repositories
-    # JAXA: https://github.com/jaxa UK Space Agency: https://github.com/UKSpaceAgency
-    for organization_to_process in tqdm(organizations):
-        if github_gmail.rate_limiting[0] < 500:
-            wait_for_reset_ratelimit(github_gmail)
-
-        log("INFO", f" Processing: {organization_to_process}")
-        path = "./github_data/" + organization_to_process
-        os.makedirs(path, exist_ok=True)
-        folder_path = os.listdir(path)
-
-        if not folder_path or len(folder_path) != sum(1 for i in folder_path if i.endswith(".csv")):
-            process_organization(organization_to_process, path)
-        else:
-            print(organization_to_process + " already scraped successfully. Skipping ...")
