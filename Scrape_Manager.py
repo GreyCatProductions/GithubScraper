@@ -39,7 +39,6 @@ def process_organization(organization_name: str, clone_directory_path: str, gith
             log("INFO", "commits processed")
 
             log("INFO", f"Finished processing {repository.name}")
-            break
         except RateLimitExceededException:
             wait_for_reset_ratelimit(github_gmail)
             continue
