@@ -1,7 +1,7 @@
 import datetime
 
 
-def log(level, message):
+def log(scraper_nr: int, level: str, message: str):
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     levels = {
         "INFO": "\033[94m[INFO]\033[0m",
@@ -9,4 +9,4 @@ def log(level, message):
         "ERROR": "\033[91m[ERROR]\033[0m",
         "DEBUG": "\033[90m[DEBUG]\033[0m"
     }
-    print(f"{timestamp} {levels[level]} {message}")
+    print(f"{timestamp} Thread #{scraper_nr} {levels[level]} {message}")
