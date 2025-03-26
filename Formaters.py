@@ -1,3 +1,4 @@
+import os.path
 import time
 from datetime import datetime
 from typing import Callable
@@ -12,48 +13,48 @@ from Rate_Limiter import wait_for_reset_ratelimit
 import tempfile
 from Logger import log
 
-def get_organization(organization_name: str, github_gmail):
+def get_organization(organization_name: str, github_gmail, scraper_nr):
     try:
         return github_gmail.get_organization(organization_name)
     except UnknownObjectException:
         try:
             return github_gmail.get_user(organization_name)
         except Exception as e:
-            log("ERROR", f"Failed to get user {e}")
+            log(scraper_nr, "ERROR", f"Failed to get user {e}")
             Exception("Failed to get organization")
 
-def get_formatted_issues(repository: Repository, github_gmail):
+def get_formatted_issues(repository: Repository, github_gmail, scraper_nr):
     issues = []
     issue_list = list(repository.get_issues(state="all"))
 
     for issue in issue_list:
-        formatted_issue = __retry_request(__format_issue, github_gmail, repository.name, issue)
+        formatted_issue = __retry_request(__format_issue, github_gmail, scraper_nr, repository.name, issue)
         if formatted_issue:
             issues.append(formatted_issue)
 
     return issues
 
-def get_formatted_branches(repository: Repository, github_gmail):
+def get_formatted_branches(repository: Repository, github_gmail, scraper_nr):
     branches = []
     for branch in repository.get_branches():
-        formatted_branch = __retry_request(__format_branch, github_gmail,  repository, branch)
+        formatted_branch = __retry_request(__format_branch, github_gmail, scraper_nr,  repository, branch)
         if formatted_branch:
             branches.append(formatted_branch)
     return branches
 
-def get_formatted_contributions(repository: Repository, organization_name: str, github_gmail):
+def get_formatted_contributions(repository: Repository, organization_name: str, github_gmail, scraper_nr):
     contributions = []
 
     try:
         stats_contributors = repository.get_stats_contributors()
         if stats_contributors:
             for contributor in stats_contributors:
-                formatted_contributor = __retry_request(__format_contributors, github_gmail, organization_name,
+                formatted_contributor = __retry_request(__format_contributors, github_gmail, scraper_nr, organization_name,
                                                         repository, contributor, "")
                 if formatted_contributor:
                     contributions.append(formatted_contributor)
         else:
-            log("WARNING", "Failed to fetch stats contributors")
+            log(scraper_nr, "WARNING", "Failed to fetch stats contributors")
     except GithubException as ge:
         if ge.status in {500, 502}:
             contributions.append(__format_contributors(organization_name, repository, None, str(ge.status)))
@@ -62,15 +63,15 @@ def get_formatted_contributions(repository: Repository, organization_name: str, 
 
     return contributions
 
-def get_formatted_users(repository: Repository, github_gmail):
+def get_formatted_users(repository: Repository, github_gmail, scraper_nr):
     users = []
     for user in repository.get_contributors():
-        formatted_user = __retry_request(__format_user, github_gmail, repository, user)
+        formatted_user = __retry_request(__format_user, github_gmail, scraper_nr, repository, user)
         if formatted_user:
             users.append(formatted_user)
     return users
 
-def get_formatted_forks(repository: Repository, organization_name: str, github_gmail):
+def get_formatted_forks(repository: Repository, organization_name: str, github_gmail, scraper_nr):
     forks = []
     for fork in repository.get_forks():
         retries = 3
@@ -109,33 +110,33 @@ def get_formatted_forks(repository: Repository, organization_name: str, github_g
                 wait_for_reset_ratelimit(github_gmail)
             retries -= 1
         if retries == 0:
-            log("ERROR", "Failed to format fork 3 times")
+            log(scraper_nr, "ERROR", "Failed to format fork 3 times")
     return forks
 
-def get_formatted_pulls(repository: Repository, organization_name: str, github_gmail):
+def get_formatted_pulls(repository: Repository, organization_name: str, github_gmail, scraper_nr):
     pulls = []
     for pull in repository.get_pulls(state="all"):
-        formatted_pull = __retry_request(__format_pull, github_gmail, organization_name, repository, pull)
+        formatted_pull = __retry_request(__format_pull, github_gmail, scraper_nr, organization_name, repository, pull)
         pulls.append(formatted_pull)
     return pulls
 
-def get_formatted_commits(repository, organization_name):
+def get_formatted_commits(repository, organization_name, scraper_nr):
     formatted_commits = []
     with tempfile.TemporaryDirectory() as tmp_dir_name:
-        tmp_dir = pathlib.Path(tmp_dir_name)
+        tmp_dir = pathlib.Path(os.path.join(tmp_dir_name, str(scraper_nr)))
         try:
             Repo.clone_from(repository.clone_url, f'{tmp_dir}')
         except GitError:
-            log("WARNING", f"Likely already exists repo: {repository.name}")
+            log(scraper_nr, "WARNING", f"Likely already exists repo: {repository.name}")
         except Exception as e:
-            log("ERROR", f"An exception occurred for Repo: {repository.name} {e}")
+            log(scraper_nr, "ERROR", f"An exception occurred for Repo: {repository.name} {e}")
 
         try:
             repo_clone = Repo(tmp_dir)
             for commit in repo_clone.iter_commits():
                 formatted_commits.append(__format_commit(organization_name, repository, commit))
         except Exception as e:
-            log("ERROR", f"Failed to process commits for {repository.name}: {e}")
+            log(scraper_nr, "ERROR", f"Failed to process commits for {repository.name}: {e}")
         finally:
             repo_clone.close()
             time.sleep(1)
@@ -192,7 +193,7 @@ def get_formated_repository_data(repository: Repository, organization_name: str)
     ]
     return repo_data, summary_data
 
-def __retry_request(func: Callable, github_gmail: Github, *args, **kwargs):
+def __retry_request(func: Callable, github_gmail: Github, scraper_nr, *args, **kwargs):
     retries = 5
     while retries > 0:
         try:
@@ -202,9 +203,10 @@ def __retry_request(func: Callable, github_gmail: Github, *args, **kwargs):
             retries -= 1
         except GithubException as e:
             if e.status == 403:
+                log(scraper_nr, "ERROR", f"Access denied for {func.__name__}")
                 return None
             raise
-    log("ERROR", f"Failed {func.__name__} {5} times")
+    log(scraper_nr, "ERROR", f"Failed {func.__name__} {5} times")
     return None
 
 def __format_timestamp(timestamp):

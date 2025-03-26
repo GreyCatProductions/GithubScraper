@@ -1,34 +1,43 @@
 import os
-
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from github import Github
-from tqdm import tqdm
 from Logger import log
 from Rate_Limiter import wait_for_reset_ratelimit
 from Scrape_Manager import process_organization
+from GitHubTokenReader import get_tokens
+
+
+def scrape_organization(organization, github_gmail, scraper_nr):
+    if github_gmail.rate_limiting[0] < 500:
+        wait_for_reset_ratelimit(github_gmail)
+
+    log(scraper_nr, "INFO", f"Processing: {organization}")
+    path = f"./github_data/{organization}"
+    os.makedirs(path, exist_ok=True)
+    process_organization(organization, path, github_gmail, scraper_nr)
+
 
 def main():
-    github_gmail = Github("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") # gmail.com
-
     organizations = ["amzn", "groupon"]
-    # Übrige microsfot
-    # NASA: https://github.com/NASA
-    # ESA: https://github.com/ESA
-    # DLR: https://github.com/DLR-SC
-    # CNES: CNES (French National Centre for Space Studies)
-    # ISRO: https://github.com/orgs/isro/repositories
-    # JAXA: https://github.com/jaxa UK Space Agency: https://github.com/UKSpaceAgency
-    for organization_to_process in tqdm(organizations):
-        if github_gmail.rate_limiting[0] < 500:
-            wait_for_reset_ratelimit(github_gmail)
+    github_gmails = [Github(token) for token in get_tokens()]
+    threads_to_create = min(len(organizations), len(github_gmails))
 
-        log("INFO", f" Processing: {organization_to_process}")
-        path = "./github_data/" + organization_to_process
-        os.makedirs(path, exist_ok=True)
-        folder_path = os.listdir(path)
+    scraper_nr = 1
 
-        if not folder_path or len(folder_path) != sum(1 for i in folder_path if i.endswith(".csv")):
-            process_organization(organization_to_process, path, github_gmail)
-        else:
-            print(organization_to_process + " already scraped successfully. Skipping ...")
+    with ThreadPoolExecutor(threads_to_create) as executor:
+        future_to_org = {}
 
-main()
+        for i, org in enumerate(organizations):
+            scraper_nr = i + 1
+            github_gmail = github_gmails[i % len(github_gmails)]
+            future = executor.submit(scrape_organization, org, github_gmail, scraper_nr)
+            future_to_org[future] = org
+
+        for future in as_completed(future_to_org):
+            try:
+                future.result()
+            except Exception as e:
+                log(scraper_nr, "ERROR", f"Error processing {future_to_org[future]}: {e}")
+
+if __name__ == "__main__":
+    main()
