@@ -1,5 +1,6 @@
 import time
 from datetime import datetime
+from Logger import log
 
 
 def wait_for_reset_ratelimit(g):

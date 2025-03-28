@@ -1,12 +1,11 @@
 import csv
-
 import pandas as pd
 import os
 import traceback
 from Formaters import *
 from Logger import log
 
-def write_csv(data, columns, filepath, scraper_nr, sep=';'):
+def write_csv(data, columns, filepath, sep=';'):
     df = pd.DataFrame(data, columns=columns)
 
     if os.path.exists(filepath):
@@ -14,21 +13,15 @@ def write_csv(data, columns, filepath, scraper_nr, sep=';'):
     else:
         df.to_csv(filepath, mode='w', index=False, sep=sep, header=True)
 
-    with open(filepath, mode='a', newline='', encoding='utf-8') as f:
-        f.write('\n')
-
-    log(scraper_nr, "INFO", f"Saved CSV file: {filepath}")
-
-
 def get_already_scraped_repos_amount(clone_directory_path):
     if not os.path.exists(os.path.join(clone_directory_path, 'organization_repos.csv')):
         return 0
 
     csv_path = os.path.join(clone_directory_path, 'organization_repos.csv')
-    with open(csv_path, mode='r') as file:
+    with open(csv_path, mode='r', encoding='utf-8', errors="replace") as file:
         reader = list(csv.reader(file, delimiter=';'))
         row_count = len(reader)
-    return max(row_count - 2, 0)
+    return row_count - 1
 
 
 def process_organization(organization_name: str, clone_directory_path: str, github_gmail, scraper_nr):
@@ -111,7 +104,8 @@ def process_organization(organization_name: str, clone_directory_path: str, gith
 
             for key, columns in columns_mapping.items():
                 csv_file = os.path.join(clone_directory_path, f"{key}.csv")
-                write_csv(data[key], columns, csv_file, scraper_nr)
+                write_csv(data[key], columns, csv_file)
+            log(scraper_nr, "INFO", f"Finished saving extracted data from {repository.name}")
 
         except RateLimitExceededException:
             wait_for_reset_ratelimit(github_gmail)
