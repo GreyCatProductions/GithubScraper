@@ -18,7 +18,7 @@ def scrape_organization(organization, github_gmail, scraper_nr):
 
 
 def main():
-    organizations = ["amzn", "groupon"]
+    organizations = ["amzn"]
     github_gmails = [Github(token) for token in get_tokens()]
     threads_to_create = min(len(organizations), len(github_gmails))
     print(f"Creating {threads_to_create} threads")
