@@ -3,7 +3,7 @@ from github import Github
 from Logger import log
 
 def wait_for_reset_ratelimit(thread: int, g: Github):
-    requests_left = g.get_rate_limit().core.limit
+    requests_left = g.get_rate_limit().core.remaining
     reset_time = g.rate_limiting_resettime
     current_time = time.time()
     offset = 300
@@ -18,11 +18,11 @@ def wait_for_reset_ratelimit(thread: int, g: Github):
             print(f"Sleeping for {sleep_time:.2f} seconds")
             time.sleep(sleep_time)
 
-        if g.get_rate_limit().core.limit >= 4900:
+        if g.get_rate_limit().core.remaining >= 4900:
             print("Rate limit successfully reset")
             return True
         else:
-            print(f"Rate limit failed to reset. Should be 5000 but is {g.get_rate_limit().core.limit}! Retrying...")
+            print(f"Rate limit failed to reset. Should be 5000 but is {g.get_rate_limit().core.remaining}! Retrying...")
             retries -= 1
             time.sleep(300)
 
