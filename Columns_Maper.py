@@ -1,0 +1,37 @@
+def get_columns_map():
+    return {
+        "organization_repos": ['Organization', 'RepoName', 'Repo_ID', 'Forks_Count', 'Stargazers_Count',
+                               'Watchers_Count',
+                               'Size', 'Open_Issues_Count', 'Subscribers_Count', 'Network_Count', 'Language',
+                               'Description',
+                               'Pushed_at', 'Created_at', 'Updated_at', 'Date', 'Default_Branch', "readme",
+                               "Fork_Bool", "Languages"],
+
+        "repos": ['Organization', 'RepoName', 'Repo Author', 'Created_at', 'Size', 'Stargazers_Url',
+                  'Stargazers_Count', 'Subscribers', 'Subscribers_Count', 'Forks', 'Forks_Count', 'Forks_Url',
+                  'Language', 'Description', 'Created at', 'Updated at', 'Date', "Fork_Bool", "Languages"],
+
+        "issues": ["Repository", "Issue_Title", "Issue_State",
+                   "Created At", "Closed Date", "User Email", "User Login", "User Name", "User ID", "Comments"],
+
+        "branches": ["Repo Name", "Branch Name", "Protected", "Last Modified"],
+
+        "contributions": ['Organization', 'Repository', 'Username', 'Contributions', 'Date', "Contributor Login"],
+
+        "users": ['Repo Name', "Repo ID", 'Login', 'Name', 'ID', 'Bio', 'Blog', 'Company', 'Collaborators',
+                  'Created at', 'Disk Usage', 'Email', 'Events Url', 'Followers', 'Followers Url', 'Following',
+                  'Following Url', 'Hireable', 'Location', 'Plan', 'Public repos', 'type', 'Updated at', 'Date'],
+
+        "forks": ['Organization', 'RepoName', 'ForkName', 'Fork Author Login', 'Created at', 'Pushed at', 'Updated at',
+                  'Date', "Fork Author Name", "Fork Author ID", "Fork Downloads", "Fork Last Modified", "Fork Watchers",
+                  "Fork Subscribers", "Fork Open Issues", "Commits Ahead"],
+
+        "pulls": ["Orga", "Repository", "ID", "Additions", "Deletions", "Changed_Files", "Comments", "State",
+                  "Merged", "Created_at", "Updated_at", "Closed_at", "Merged_at", "Pull Username", "Pull User Login",
+                  "Pull User ID", "Pull Last Modified", "Pull Assignee", "Pull Assignees", "Pull Comments",
+                  "Pull Title", "Commit SHA", "Commit Info"],
+
+        "commits": ['Organization', 'RepoName', 'Repo Created at', 'Commit Message', 'Author Name', "Author Email", "Author Login",
+                    'Committer Name', "Commiter Email", "Commiter Login", 'Deletions', 'Additions', 'Commit Date',
+                    'Authored Date', "Files Modified", "BinSHA"]
+    }

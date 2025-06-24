@@ -1,44 +1,61 @@
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from github import Github
+
 from Logger import log
-from Rate_Limiter import wait_for_reset_ratelimit
 from Scrape_Manager import process_organization
+import threading
+from queue import Queue
+from github import Github
 from GitHubTokenReader import get_tokens
 
 
-def scrape_organization(organization, github_gmail, scraper_nr):
-    if github_gmail.rate_limiting[0] < 500:
-        wait_for_reset_ratelimit(github_gmail)
+def token_worker(github_gmail: Github, org_queue: Queue[str], token_id: int):
+    while not org_queue.empty():
+        try:
+            org = org_queue.get_nowait()
+        except:
+            break
 
-    log(scraper_nr, "INFO", f"Processing: {organization}")
-    path = f"./github_data/{organization}"
-    os.makedirs(path, exist_ok=True)
-    process_organization(organization, path, github_gmail, scraper_nr)
+        try:
+            log(token_id, "INFO", f"Starting to scrape organization: {org}")
+
+            path = f"./github_data/{org}"
+            os.makedirs(path, exist_ok=True)
+
+            process_organization(org, path, github_gmail, token_id)
+        except Exception as e:
+            log(token_id, "ERROR", f"Error processing {org}: {e}")
+        finally:
+            org_queue.task_done()
 
 
 def main():
-    organizations = ["amzn"]
-    github_gmails = [Github(token) for token in get_tokens()]
-    threads_to_create = min(len(organizations), len(github_gmails))
-    print(f"Creating {threads_to_create} threads")
+    organizations = [
+        "ebay", "SAP", "allegro", "zalando", "otto-de", "walmartlabs",
+        "vinted", "jd-opensource", "rakutentech", "myntra", "flipkart",
+        "namshi", "salesforce", "mozilla-firefox", "google", "APPLE",
+        "bytedance", "grab", "spotify", "nextcloud", "otto-de", "mercadolibre",
+        "etsy", "revolut-engineering"
+    ]
 
-    scraper_nr = 1
+    org_queue: Queue[str] = Queue()
+    for org in organizations:
+        org_queue.put(org)
 
-    with ThreadPoolExecutor(threads_to_create) as executor:
-        future_to_org = {}
+    github_gmails: list[Github] = [Github(token) for token in get_tokens()]
+    num_workers = len(github_gmails)
 
-        for i, org in enumerate(organizations):
-            scraper_nr = i + 1
-            github_gmail = github_gmails[i % len(github_gmails)]
-            future = executor.submit(scrape_organization, org, github_gmail, scraper_nr)
-            future_to_org[future] = org
+    threads = []
 
-        for future in as_completed(future_to_org):
-            try:
-                future.result()
-            except Exception as e:
-                log(scraper_nr, "ERROR", f"Error processing {future_to_org[future]}: {e}")
+    for i in range(num_workers):
+        t = threading.Thread(target=token_worker, args=(github_gmails[i], org_queue, i))
+        t.start()
+        threads.append(t)
+
+    for t in threads:
+        t.join()
+
+    print("All organizations processed.")
+
 
 if __name__ == "__main__":
     main()

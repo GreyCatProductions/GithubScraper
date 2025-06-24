@@ -12,6 +12,7 @@ from github.GithubException import RateLimitExceededException, UnknownObjectExce
 from Rate_Limiter import wait_for_reset_ratelimit
 import tempfile
 from Logger import log
+from collections import defaultdict
 
 def get_organization(organization_name: str, github_gmail, scraper_nr):
     try:
@@ -123,6 +124,7 @@ def get_formatted_pulls(repository: Repository, organization_name: str, github_g
 def get_formatted_commits(repository, organization_name, scraper_nr):
     formatted_commits = []
     with tempfile.TemporaryDirectory() as tmp_dir_name:
+        repo_clone = None
         tmp_dir = pathlib.Path(os.path.join(tmp_dir_name, str(scraper_nr)))
         try:
             Repo.clone_from(repository.clone_url, f'{tmp_dir}')
@@ -138,7 +140,8 @@ def get_formatted_commits(repository, organization_name, scraper_nr):
         except Exception as e:
             log(scraper_nr, "ERROR", f"Failed to process commits for {repository.name}: {e}")
         finally:
-            repo_clone.close()
+            if repo_clone is not None:
+                repo_clone.close()
             time.sleep(1)
     return formatted_commits
 
@@ -148,6 +151,11 @@ def get_formated_repository_data(repository: Repository, organization_name: str)
     updated_at = __check_none(repository.updated_at)
     pushed_at = __check_none(repository.pushed_at)
     cur_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        languages = repository.get_languages()
+    except Exception as e:
+        print("Failed to get languages" + str(e))
+        languages = ""
 
     repo_data = [
         organization_name,
@@ -168,7 +176,8 @@ def get_formated_repository_data(repository: Repository, organization_name: str)
         cur_time,
         repository.default_branch,
         readme,
-        repository.fork
+        repository.fork,
+        languages
     ]
 
     summary_data = [
@@ -189,7 +198,8 @@ def get_formated_repository_data(repository: Repository, organization_name: str)
         created_at,
         updated_at,
         cur_time,
-        repository.fork
+        repository.fork,
+        languages
     ]
     return repo_data, summary_data
 
@@ -197,6 +207,8 @@ def __retry_request(func: Callable, github_gmail: Github, scraper_nr, *args, **k
     retries = 5
     while retries > 0:
         try:
+            if github_gmail.get_rate_limit().core.remaining < 100:
+                wait_for_reset_ratelimit(github_gmail)
             return func(*args, **kwargs)
         except RateLimitExceededException:
             wait_for_reset_ratelimit(github_gmail)
@@ -225,6 +237,12 @@ def __get_readme(repository: Repository):
 
 def __format_issue(repo_name:str, issue: Issue) -> list:
     user = issue.user
+    try:
+        comments = issue.get_comments()
+    except Exception as e:
+        print(e)
+        comments = ""
+        pass
     return [
         repo_name,
         issue.title,
@@ -234,7 +252,8 @@ def __format_issue(repo_name:str, issue: Issue) -> list:
         user.email,
         user.login,
         user.name,
-        user.id
+        user.id,
+        comments
     ]
 
 def __format_branch(repo: Repository, branch: Branch) -> list:
@@ -261,15 +280,28 @@ def __format_fork(organization_name: str, repo: Repository, fork: Repository, fo
                                               fork_subs, fork.open_issues_count, commits_ahead]
 
 def __format_pull(organization_name: str, repo: Repository, pull: PullRequest) -> list:
+    commit_to_prs = defaultdict(list)
+    for commit in pull.get_commits():
+        try:
+            pull_head = pull.head.repo.full_name
+        except:
+            pull_head = ""
+        commit_to_prs[commit.sha].append({
+            "pr_number": pull.number,
+            "merged": pull.is_merged(),
+            "from_fork": pull_head != pull.base.repo.full_name
+        })
     return [organization_name, repo.name, pull.id, pull.additions, pull.deletions, pull.changed_files, pull.comments,
      pull.state, pull.merged, __check_none(pull.created_at), __check_none(pull.updated_at),
      __check_none(pull.closed_at), __check_none(pull.merged_at), pull.user.name, pull.user.login, pull.user.id,
-     pull.last_modified, pull.assignee, pull.assignees, pull.comments, pull.title, pull.merge_commit_sha]
+     pull.last_modified, pull.assignee, pull.assignees, pull.comments, pull.title, pull.merge_commit_sha, commit_to_prs]
 
 def __format_commit(organization_name: str, repo: Repository, commit: Commit) -> list:
+    author_login = getattr(commit.author, "login", None)
+    committer_login = getattr(commit.committer, "login", None)
     return [organization_name, repo.name, repo.created_at.strftime("%Y-%m-%d %H:%M:%S"), commit.message,
-     commit.author.name, commit.author.email, commit.committer.name, commit.committer.email,
+     commit.author.name, commit.author.email, author_login, commit.committer.name, commit.committer.email, committer_login,
      commit.stats.total["deletions"], commit.stats.total["insertions"],
      __format_timestamp(commit.authored_datetime),
      __format_timestamp(commit.authored_datetime),
-     commit.stats.total["files"], commit.binsha]
+     commit.stats.total["files"], commit.binsha.hex()]
