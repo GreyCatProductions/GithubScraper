@@ -9,4 +9,4 @@ def log(scraper_nr: int, level: str, message: str):
         "ERROR": "\033[91m[ERROR]\033[0m",
         "DEBUG": "\033[90m[DEBUG]\033[0m"
     }
-    print(f"{timestamp} Thread #{scraper_nr} {levels[level]} {message}")
+    print(f"{timestamp} Thread #{scraper_nr} {levels[level.upper()]} {message}")
