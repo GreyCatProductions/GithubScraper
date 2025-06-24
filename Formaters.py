@@ -108,7 +108,7 @@ def get_formatted_forks(repository: Repository, organization_name: str, github_g
                                          fork_owner_id, fork_owner_login, fork_subs, commits_ahead))
                 break
             except RateLimitExceededException:
-                wait_for_reset_ratelimit(github_gmail)
+                wait_for_reset_ratelimit(scraper_nr, github_gmail)
             retries -= 1
         if retries == 0:
             log(scraper_nr, "ERROR", "Failed to format fork 3 times")
@@ -208,10 +208,10 @@ def __retry_request(func: Callable, github_gmail: Github, scraper_nr, *args, **k
     while retries > 0:
         try:
             if github_gmail.get_rate_limit().core.remaining < 100:
-                wait_for_reset_ratelimit(github_gmail)
+                wait_for_reset_ratelimit(scraper_nr, github_gmail)
             return func(*args, **kwargs)
         except RateLimitExceededException:
-            wait_for_reset_ratelimit(github_gmail)
+            wait_for_reset_ratelimit(scraper_nr, github_gmail)
             retries -= 1
         except GithubException as e:
             if e.status == 403:

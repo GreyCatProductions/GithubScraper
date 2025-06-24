@@ -1,31 +1,31 @@
 import time
-from datetime import datetime
+from github import Github
+from Logger import log
 
-def wait_for_reset_ratelimit(g):
-    print("Rate Limit Reached")
-    print(g.rate_limiting)
+def wait_for_reset_ratelimit(thread: int, g: Github):
+    requests_left = g.get_rate_limit().core.limit
+    reset_time = g.rate_limiting_resettime
+    current_time = time.time()
+    offset = 300
+    sleep_time = reset_time - time.time() + offset
+
+    log(thread, "INFO", f"Ratelimit reached! Requests left = {requests_left}, Reset_time = {reset_time}, Current_time = {current_time}, Time to sleep = {sleep_time}")
 
     retries = 3
 
     while retries > 0:
-        reset_time = datetime.fromtimestamp(g.rate_limiting_resettime)
-        now = datetime.now()
-        diff = abs((reset_time - now).total_seconds())
-        offset_time = 30
+        if sleep_time > 0:
+            print(f"Sleeping for {sleep_time:.2f} seconds")
+            time.sleep(sleep_time)
 
-        if diff > 0:
-            print(f"Sleeping for {diff + offset_time:.2f} seconds")
-            time.sleep(diff + offset_time)
-        else:
-            print(f"Reset time already passed ({diff:.2f}s ago), checking again in 10s")
-            time.sleep(10)
-
-        if g.rate_limiting[0] >= 4900:
+        if g.get_rate_limit().core.limit >= 4900:
             print("Rate limit successfully reset")
             return True
         else:
-            print("Rate limit failed to reset. Retrying...")
+            print(f"Rate limit failed to reset. Should be 5000 but is {g.get_rate_limit().core.limit}! Retrying...")
             retries -= 1
             time.sleep(300)
 
-    raise Exception("Failed to reset rate limit")
+    log(thread, "ERROR", "Failed to reset rate limit. Waiting for 65 minutes as emergency solution!")
+    time.sleep(65 * 60)
+    return True
