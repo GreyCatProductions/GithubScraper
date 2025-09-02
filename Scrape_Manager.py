@@ -5,6 +5,8 @@ import traceback
 import Columns_Maper
 from Formaters import *
 from Logger import log
+import csv
+csv.field_size_limit(100000000)
 
 def write_csv(data, columns, filepath, sep=';'):
     try:
@@ -26,8 +28,13 @@ def get_already_scraped_repos_amount(clone_directory_path):
         row_count = len(reader)
     return row_count - 1
 
-def process_organization(organization_name: str, clone_directory_path: str, github_gmail, thread_nr):
-    organization = get_organization(organization_name, github_gmail, thread_nr)
+def process_organization(organization_name: str, clone_directory_path: str, github_gmail, thread_nr) -> bool:
+    try:
+        organization = get_organization(organization_name, github_gmail, thread_nr)
+    except Exception as e:
+        log(thread_nr, "WARNING", f"Failed to get organization {organization_name}! Token probably invalid! {e}")
+        return False
+
     repos = organization.get_repos(type="all")
 
     log(thread_nr, "INFO", f"{repos.totalCount} repos found")
@@ -52,7 +59,7 @@ def process_organization(organization_name: str, clone_directory_path: str, gith
         try:
             start_requests = github_gmail.get_rate_limit().core.remaining
 
-            repo_data, summary_data = get_formated_repository_data(repository, organization_name)
+            repo_data, summary_data = get_formated_repository_data(repository, organization_name, thread_nr)
             data["organization_repos"].append(repo_data)
             data["repos"].append(summary_data)
             data["issues"].extend(get_formatted_issues(repository, github_gmail, thread_nr))
@@ -72,7 +79,7 @@ def process_organization(organization_name: str, clone_directory_path: str, gith
 
             end_requests = github_gmail.get_rate_limit().core.remaining
             costed_requests = start_requests - end_requests
-            log(thread_nr, "INFO", f"Finished processing {repository.name}. Request cost = {costed_requests}, Left = {end_requests}")
+            log(thread_nr, "INFO", f"Finished processing {repository.name} of organization {organization_name}. Request cost = {costed_requests}, Left = {end_requests}")
 
 
             for key, columns in columns_map.items():
@@ -89,3 +96,4 @@ def process_organization(organization_name: str, clone_directory_path: str, gith
             log(thread_nr, "ERROR", "Error on repository: " + repository.name + " " + str(e))
             print(traceback.print_exc())
             continue
+    return True

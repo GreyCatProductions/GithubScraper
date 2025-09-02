@@ -6,6 +6,8 @@ import threading
 from queue import Queue
 from github import Github
 from GitHubTokenReader import get_tokens
+import csv
+csv.field_size_limit(100000000)
 
 
 def token_worker(github_gmail: Github, org_queue: Queue[str], token_id: int):
@@ -21,7 +23,9 @@ def token_worker(github_gmail: Github, org_queue: Queue[str], token_id: int):
             path = f"./github_data/{org}"
             os.makedirs(path, exist_ok=True)
 
-            process_organization(org, path, github_gmail, token_id)
+            Token_Valid = process_organization(org, path, github_gmail, token_id)
+            if not Token_Valid:
+                return
         except Exception as e:
             log(token_id, "ERROR", f"Error processing {org}: {e}")
         finally:
@@ -30,12 +34,37 @@ def token_worker(github_gmail: Github, org_queue: Queue[str], token_id: int):
 
 def main():
     organizations = [
-        "ebay", "SAP", "allegro", "zalando", "otto-de", "walmartlabs",
-        "vinted", "jd-opensource", "rakutentech", "myntra", "flipkart",
-        "namshi", "salesforce", "mozilla-firefox", "google", "APPLE",
-        "bytedance", "grab", "spotify", "nextcloud", "otto-de", "mercadolibre",
-        "etsy", "revolut-engineering"
-    ]
+    "ibm-watson",
+    "azure",
+    "forcedotcom",
+    "android",
+    "valvesoftware",
+    "facebook",
+    "aws",
+    "arm-software",
+    "sony",
+    "adobe",
+    "apache",
+    "CNCF",
+    "IBM",
+    "redhatofficial",
+    "airbnb",
+    "eclipse",
+    "openstack",
+    "fsfe",
+    "Netflix",
+    "twitter",
+    "OSGeo",
+    "cloudflare",
+    "stripe",
+    "openjs-foundation",
+    "OPENAI",
+    "lfai",
+    "AWSLABS",
+    "GoogleCloudPlatform",
+    "vmware",
+    "oracle"
+]
 
     org_queue: Queue[str] = Queue()
     for org in organizations:

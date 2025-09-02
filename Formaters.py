@@ -29,7 +29,11 @@ def get_formatted_issues(repository: Repository, github_gmail, scraper_nr):
     issue_list = list(repository.get_issues(state="all"))
 
     for issue in issue_list:
-        formatted_issue = __retry_request(__format_issue, github_gmail, scraper_nr, repository.name, issue)
+        formatted_issue = None
+        try:
+            formatted_issue = __retry_request(__format_issue, github_gmail, scraper_nr, repository.name, issue)
+        except Exception as e:
+            log(scraper_nr, "WARNING", f"Failed to get issue {e}. Skipping it")
         if formatted_issue:
             issues.append(formatted_issue)
 
@@ -38,7 +42,11 @@ def get_formatted_issues(repository: Repository, github_gmail, scraper_nr):
 def get_formatted_branches(repository: Repository, github_gmail, scraper_nr):
     branches = []
     for branch in repository.get_branches():
-        formatted_branch = __retry_request(__format_branch, github_gmail, scraper_nr,  repository, branch)
+        formatted_branch = None
+        try:
+            formatted_branch = __retry_request(__format_branch, github_gmail, scraper_nr,  repository, branch)
+        except Exception as e:
+            log(scraper_nr, "WARNING", f"Failed to get branch {e}. Skipping it")
         if formatted_branch:
             branches.append(formatted_branch)
     return branches
@@ -50,8 +58,13 @@ def get_formatted_contributions(repository: Repository, organization_name: str, 
         stats_contributors = repository.get_stats_contributors()
         if stats_contributors:
             for contributor in stats_contributors:
-                formatted_contributor = __retry_request(__format_contributors, github_gmail, scraper_nr, organization_name,
-                                                        repository, contributor, "")
+                formatted_contributor = None
+                try:
+                    formatted_contributor = __retry_request(__format_contributors, github_gmail, scraper_nr, organization_name,
+                                                            repository, contributor, "")
+                except Exception as e:
+                    log(scraper_nr, "WARNING", f"Failed to get contributor {e}. Skipping it")
+
                 if formatted_contributor:
                     contributions.append(formatted_contributor)
         else:
@@ -66,10 +79,18 @@ def get_formatted_contributions(repository: Repository, organization_name: str, 
 
 def get_formatted_users(repository: Repository, github_gmail, scraper_nr):
     users = []
-    for user in repository.get_contributors():
-        formatted_user = __retry_request(__format_user, github_gmail, scraper_nr, repository, user)
-        if formatted_user:
-            users.append(formatted_user)
+
+    try:
+        for user in repository.get_contributors():
+            formatted_user = None
+            try:
+                formatted_user = __retry_request(__format_user, github_gmail, scraper_nr, repository, user)
+            except Exception as e:
+                log(scraper_nr, "WARNING", f"Failed to get user {e}. Skipping it")
+            if formatted_user:
+                users.append(formatted_user)
+    except Exception as e:
+        log(scraper_nr, "WARNING", "Failed to fetch users!" + str(e))
     return users
 
 def get_formatted_forks(repository: Repository, organization_name: str, github_gmail, scraper_nr):
@@ -117,7 +138,12 @@ def get_formatted_forks(repository: Repository, organization_name: str, github_g
 def get_formatted_pulls(repository: Repository, organization_name: str, github_gmail, scraper_nr):
     pulls = []
     for pull in repository.get_pulls(state="all"):
-        formatted_pull = __retry_request(__format_pull, github_gmail, scraper_nr, organization_name, repository, pull)
+        formatted_pull = None
+        try:
+            formatted_pull = __retry_request(__format_pull, github_gmail, scraper_nr, organization_name, repository, pull)
+        except Exception as e:
+            log(scraper_nr, "WARNING", f"Failed to get pull {e}. Skipping it")
+
         pulls.append(formatted_pull)
     return pulls
 
@@ -145,7 +171,7 @@ def get_formatted_commits(repository, organization_name, scraper_nr):
             time.sleep(1)
     return formatted_commits
 
-def get_formated_repository_data(repository: Repository, organization_name: str) -> tuple:
+def get_formated_repository_data(repository: Repository, organization_name: str, scraper_nr: int) -> tuple:
     readme = __get_readme(repository)
     created_at = __check_none(repository.created_at)
     updated_at = __check_none(repository.updated_at)
@@ -154,53 +180,59 @@ def get_formated_repository_data(repository: Repository, organization_name: str)
     try:
         languages = repository.get_languages()
     except Exception as e:
-        print("Failed to get languages" + str(e))
+        log(scraper_nr, "WARNING", "Failed to get languages" + str(e))
         languages = ""
 
-    repo_data = [
-        organization_name,
-        repository.name,
-        repository.id,
-        repository.forks_count,
-        repository.stargazers_count,
-        repository.watchers_count,
-        repository.size,
-        repository.open_issues_count,
-        repository.subscribers_count,
-        repository.network_count,
-        repository.language,
-        repository.description,
-        pushed_at,
-        created_at,
-        updated_at,
-        cur_time,
-        repository.default_branch,
-        readme,
-        repository.fork,
-        languages
-    ]
+    repo_data = []
+    summary_data = []
 
-    summary_data = [
-        organization_name,
-        repository.name,
-        repository.name,
-        created_at,
-        repository.size,
-        repository.stargazers_url,
-        repository.stargazers_count,
-        repository.subscribers_url,
-        repository.subscribers_count,
-        repository.forks_count,
-        repository.forks_count,
-        repository.forks_url,
-        repository.language,
-        repository.description,
-        created_at,
-        updated_at,
-        cur_time,
-        repository.fork,
-        languages
-    ]
+    try:
+        repo_data = [
+            organization_name,
+            repository.name,
+            repository.id,
+            repository.forks_count,
+            repository.stargazers_count,
+            repository.watchers_count,
+            repository.size,
+            repository.open_issues_count,
+            repository.subscribers_count,
+            repository.network_count,
+            repository.language,
+            repository.description,
+            pushed_at,
+            created_at,
+            updated_at,
+            cur_time,
+            repository.default_branch,
+            readme,
+            repository.fork,
+            languages
+        ]
+
+        summary_data = [
+            organization_name,
+            repository.name,
+            repository.name,
+            created_at,
+            repository.size,
+            repository.stargazers_url,
+            repository.stargazers_count,
+            repository.subscribers_url,
+            repository.subscribers_count,
+            repository.forks_count,
+            repository.forks_count,
+            repository.forks_url,
+            repository.language,
+            repository.description,
+            created_at,
+            updated_at,
+            cur_time,
+            repository.fork,
+            languages
+        ]
+    except Exception as e:
+        log(scraper_nr, "WARNING", "Failed to get repository data" + str(e))
     return repo_data, summary_data
 
 def __retry_request(func: Callable, github_gmail: Github, scraper_nr, *args, **kwargs):
@@ -235,26 +267,28 @@ def __get_readme(repository: Repository):
     except:
         return ""
 
-def __format_issue(repo_name:str, issue: Issue) -> list:
-    user = issue.user
+def __format_issue(repo_name: str, issue: Issue) -> list:
+    user = None
+
     try:
+        user = issue.user
         comments = issue.get_comments()
     except Exception as e:
-        print(e)
-        comments = ""
-        pass
+        comments = []
+
     return [
         repo_name,
         issue.title,
         issue.state,
         __check_none(issue.created_at),
         __check_none(issue.closed_at),
-        user.email,
-        user.login,
-        user.name,
-        user.id,
+        getattr(user, 'email', None),
+        getattr(user, 'login', None),
+        getattr(user, 'name', None),
+        getattr(user, 'id', None),
         comments
     ]
+
 
 def __format_branch(repo: Repository, branch: Branch) -> list:
     return [repo.name, branch.name, branch.protected, branch.last_modified]
