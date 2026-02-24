@@ -114,11 +114,21 @@ def get_formatted_forks(repository: Repository, organization_name: str, github_g
 
                 # Compare the branches (default is usually 'main' or 'master')
                 try:
-                    comparison = fork.compare(fork.default_branch,
-                                              f"{organization_name}:{repository.default_branch}")
+                    comparison = fork.compare(
+                        f"{organization_name}:{repository.default_branch}",
+                        fork.default_branch)
+                except Exception:
+                    comparison = None
+
+                try:
                     commits_ahead = comparison.ahead_by
-                except Exception as e:
+                except Exception:
                     commits_ahead = "Error."
+
+                try:
+                    commits_behind = comparison.behind_by
+                except Exception:
+                    commits_behind = "Error."
 
                 try:
                     fork_subs = fork.subscribers_count
@@ -126,7 +136,7 @@ def get_formatted_forks(repository: Repository, organization_name: str, github_g
                     fork_subs = "Error."
 
                 forks.append(__format_fork(organization_name, repository, fork, fork_owner,
-                                         fork_owner_id, fork_owner_login, fork_subs, commits_ahead))
+                                         fork_owner_id, fork_owner_login, fork_subs, commits_ahead, commits_behind))
                 break
             except RateLimitExceededException:
                 wait_for_reset_ratelimit(scraper_nr, github_gmail)
@@ -176,6 +186,11 @@ def get_formated_repository_data(repository: Repository, organization_name: str,
     created_at = __check_none(repository.created_at)
     updated_at = __check_none(repository.updated_at)
     pushed_at = __check_none(repository.pushed_at)
+    try:
+        license_val = repository.get_license()
+        license_val = license_val.license.key
+    except UnknownObjectException:
+        license_val = "None"
     cur_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     try:
         languages = repository.get_languages()
@@ -207,7 +222,9 @@ def get_formated_repository_data(repository: Repository, organization_name: str,
             repository.default_branch,
             readme,
             repository.fork,
-            languages
+            languages,
+            license_val,
+            repository.archived
         ]
 
         summary_data = [
@@ -229,7 +246,9 @@ def get_formated_repository_data(repository: Repository, organization_name: str,
             updated_at,
             cur_time,
             repository.fork,
-            languages
+            languages,
+            license_val,
+            repository.archived
         ]
     except Exception as e:
         log(scraper_nr, "WARNING", "Failed to get repository data" + str(e))
@@ -239,7 +258,7 @@ def __retry_request(func: Callable, github_gmail: Github, scraper_nr, *args, **k
     retries = 5
     while retries > 0:
         try:
-            if github_gmail.get_rate_limit().core.remaining < 100:
+            if github_gmail.get_rate_limit().rate.remaining < 100:
                 wait_for_reset_ratelimit(scraper_nr, github_gmail)
             return func(*args, **kwargs)
         except RateLimitExceededException:
@@ -272,9 +291,9 @@ def __format_issue(repo_name: str, issue: Issue) -> list:
 
     try:
         user = issue.user
-        comments = issue.get_comments()
+        comments = issue.comments
     except Exception as e:
-        comments = []
+        comments = 0
 
     return [
         repo_name,
@@ -302,16 +321,16 @@ def __format_contributors(organization_name: str, repository: Repository, contri
 def __format_user(repo: Repository, user: NamedUser) -> list:
     return [repo.name, repo.id, user.login, user.name, user.id, user.bio, user.blog, user.company,
      user.collaborators, __check_none(user.created_at), user.disk_usage, user.email, user.events_url,
-     user.get_followers().totalCount, user.followers_url, user.get_following().totalCount,
+     user.followers, user.followers_url, user.following,
      user.following_url, user.hireable, user.location, user.plan, user.public_repos, user.type,
      __check_none(user.updated_at), datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
 
-def __format_fork(organization_name: str, repo: Repository, fork: Repository, fork_owner: NamedUser, fork_owner_id: NamedUser, fork_owner_login:NamedUser, fork_subs: Repository, commits_ahead: int) -> list:
+def __format_fork(organization_name: str, repo: Repository, fork: Repository, fork_owner: NamedUser, fork_owner_id: NamedUser, fork_owner_login:NamedUser, fork_subs: Repository, commits_ahead: int, commits_behind: int) -> list:
     return [organization_name, repo.name, fork.name, fork_owner_login, __check_none(fork.created_at),
                                               __check_none(fork.pushed_at), __check_none(fork.updated_at),
                                               datetime.now().strftime("%Y-%m-%d %H:%M:%S"), fork_owner, fork_owner_id,
                                               fork.has_downloads, fork.last_modified_datetime, fork.watchers_count,
-                                              fork_subs, fork.open_issues_count, commits_ahead]
+                                              fork_subs, fork.open_issues_count, commits_ahead, commits_behind]
 
 def __format_pull(organization_name: str, repo: Repository, pull: PullRequest) -> list:
     commit_to_prs = defaultdict(list)
@@ -322,7 +341,7 @@ def __format_pull(organization_name: str, repo: Repository, pull: PullRequest) -
             pull_head = ""
         commit_to_prs[commit.sha].append({
             "pr_number": pull.number,
-            "merged": pull.is_merged(),
+            "merged": pull.merged,
             "from_fork": pull_head != pull.base.repo.full_name
         })
     return [organization_name, repo.name, pull.id, pull.additions, pull.deletions, pull.changed_files, pull.comments,

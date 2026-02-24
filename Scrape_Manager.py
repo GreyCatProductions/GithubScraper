@@ -16,7 +16,7 @@ def write_csv(data, columns, filepath, sep=';'):
         else:
             df.to_csv(filepath, mode='w', index=False, sep=sep, header=True)
     except Exception as e:
-        print(f"Failed to create csv with columns: {columns}")
+        print(f"Failed to create csv with columns: {columns}: " + e)
 
 def get_already_scraped_repos_amount(clone_directory_path):
     if not os.path.exists(os.path.join(clone_directory_path, 'organization_repos.csv')):
@@ -57,37 +57,32 @@ def process_organization(organization_name: str, clone_directory_path: str, gith
 
         log(thread_nr, "INFO", f"Processing {repository.name} ({i}/{repos.totalCount})")
         try:
-            start_requests = github_gmail.get_rate_limit().core.remaining
 
             repo_data, summary_data = get_formated_repository_data(repository, organization_name, thread_nr)
             data["organization_repos"].append(repo_data)
             data["repos"].append(summary_data)
             data["issues"].extend(get_formatted_issues(repository, github_gmail, thread_nr))
-            #log(scraper_nr,"INFO", "issues processed")
+            log(thread_nr,"INFO", "issues processed")
             data["branches"].extend(get_formatted_branches(repository, github_gmail, thread_nr))
-            #log(scraper_nr,"INFO", "branches processed")
+            log(thread_nr,"INFO", "branches processed")
             data["contributions"].extend(get_formatted_contributions(repository, organization_name, github_gmail, thread_nr))
-            #log(scraper_nr,"INFO", "contributions processed")
+            log(thread_nr,"INFO", "contributions processed")
             data["users"].extend(get_formatted_users(repository, github_gmail, thread_nr))
-            #log(scraper_nr,"INFO", "users processed")
+            log(thread_nr,"INFO", "users processed")
             data["forks"].extend(get_formatted_forks(repository, organization_name, github_gmail, thread_nr))
-            #log(scraper_nr,"INFO", "forks processed")
+            log(thread_nr,"INFO", "forks processed")
             data["pulls"].extend(get_formatted_pulls(repository, organization_name, github_gmail, thread_nr))
-            #log(scraper_nr,"INFO", "pulls processed")
-            data["commits"].extend(get_formatted_commits(repository, organization_name, thread_nr))
-            #log(scraper_nr,"INFO", "commits processed")
+            log(thread_nr,"INFO", "pulls processed")
+            # data["commits"].extend(get_formatted_commits(repository, organization_name, thread_nr))
+            #log(thread_nr,"INFO", "commits processed")
 
-            end_requests = github_gmail.get_rate_limit().core.remaining
-            costed_requests = start_requests - end_requests
-            log(thread_nr, "INFO", f"Finished processing {repository.name} of organization {organization_name}. Request cost = {costed_requests}, Left = {end_requests}")
+            log(thread_nr, "INFO", f"Finished processing {repository.name} of organization {organization_name}.")
 
 
             for key, columns in columns_map.items():
                 csv_file = os.path.join(clone_directory_path, f"{key}.csv")
                 write_csv(data[key], columns, csv_file)
 
-            if end_requests < 100:
-                wait_for_reset_ratelimit(thread_nr, github_gmail)
 
         except RateLimitExceededException:
             wait_for_reset_ratelimit(thread_nr, github_gmail)
