@@ -5,11 +5,12 @@ def get_columns_map():
                                'Size', 'Open_Issues_Count', 'Subscribers_Count', 'Network_Count', 'Language',
                                'Description',
                                'Pushed_at', 'Created_at', 'Updated_at', 'Date', 'Default_Branch', "readme",
-                               "Fork_Bool", "Languages"],
+                               "Fork_Bool", "Languages", "License", "Archived"],
 
         "repos": ['Organization', 'RepoName', 'Repo Author', 'Created_at', 'Size', 'Stargazers_Url',
                   'Stargazers_Count', 'Subscribers', 'Subscribers_Count', 'Forks', 'Forks_Count', 'Forks_Url',
-                  'Language', 'Description', 'Created at', 'Updated at', 'Date', "Fork_Bool", "Languages"],
+                  'Language', 'Description', 'Created at', 'Updated at', 'Date', "Fork_Bool", "Languages",
+                  "License", "Archived"],
 
         "issues": ["Repository", "Issue_Title", "Issue_State",
                    "Created At", "Closed Date", "User Email", "User Login", "User Name", "User ID", "Comments"],
@@ -24,7 +25,7 @@ def get_columns_map():
 
         "forks": ['Organization', 'RepoName', 'ForkName', 'Fork Author Login', 'Created at', 'Pushed at', 'Updated at',
                   'Date', "Fork Author Name", "Fork Author ID", "Fork Downloads", "Fork Last Modified", "Fork Watchers",
-                  "Fork Subscribers", "Fork Open Issues", "Commits Ahead"],
+                  "Fork Subscribers", "Fork Open Issues", "Commits Ahead", "Commits Behind"],
 
         "pulls": ["Orga", "Repository", "ID", "Additions", "Deletions", "Changed_Files", "Comments", "State",
                   "Merged", "Created_at", "Updated_at", "Closed_at", "Merged_at", "Pull Username", "Pull User Login",
