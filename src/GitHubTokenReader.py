@@ -1,9 +1,11 @@
+from pathlib import Path
 from Logger import log
 
 def get_tokens():
     tokens = []
+    token_path = Path("~/GithubScraper/env/GitHubTokens.txt").expanduser()
     try:
-        with open('./keys/GitHubTokens', 'r', encoding='utf-8') as file:
+        with open(token_path, 'r', encoding='utf-8') as file:
             for line in file:
                 if "#" in line:
                     continue
