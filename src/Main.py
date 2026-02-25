@@ -13,6 +13,7 @@ csv.field_size_limit(100000000)
 
 PATH_TO_ORGANIZATIONS = "../organizations.txt"
 MAX_RETRIES_PER_ORG = 5
+MAX_THREADS_PER_ORG = 3
 
 retries_lock = Lock()
 
@@ -86,11 +87,11 @@ def main():
         org_queue.put((org, 0))
 
     github_tokens: list[Github] = [Github(token) for token in get_tokens()]
-    num_workers = 1 #len(github_tokens)
+    available_tokens = len(github_tokens)
 
     threads = []
 
-    for i in range(num_workers):
+    for i in range(available_tokens):
         t = Thread(target=token_worker, args=(github_tokens[i], org_queue, i))
         t.start()
         threads.append(t)
