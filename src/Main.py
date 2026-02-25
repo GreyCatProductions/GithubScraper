@@ -7,7 +7,7 @@ from queue import Empty, Queue
 from github import Github
 from GitHubTokenReader import get_tokens
 import csv
-from src.CustomExceptions import TokenException, GithubFetchException
+from CustomExceptions import TokenException, GithubFetchException
 
 csv.field_size_limit(100000000)
 
@@ -86,7 +86,7 @@ def main():
         org_queue.put((org, 0))
 
     github_tokens: list[Github] = [Github(token) for token in get_tokens()]
-    num_workers = len(github_tokens)
+    num_workers = 1 #len(github_tokens)
 
     threads = []
 

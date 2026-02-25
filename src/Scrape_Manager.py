@@ -3,16 +3,17 @@ from typing import List
 import pandas as pd
 import os
 import traceback
-import src.ColumnsMap as ColumnsMap
+import ColumnsMap as ColumnsMap
 from Formaters import *
 from Logger import log
 import csv
-from src.CustomExceptions import TokenException, GithubFetchException
+from CustomExceptions import TokenException, GithubFetchException
 from github.PaginatedList import PaginatedList
 from github.Repository import Repository
 from github import Github
 
 csv.field_size_limit(100000000)
+COMPARE_HEADER = "Repo_ID"
 
 
 def write_csv(data, columns, filepath, sep=";"):
@@ -26,15 +27,32 @@ def write_csv(data, columns, filepath, sep=";"):
         print(f"Failed to create csv with columns: {columns}: " + str(e))
 
 
-def get_already_scraped_repos_amount(clone_directory_path):
-    if not os.path.exists(os.path.join(clone_directory_path, "organization_repos.csv")):
+def get_already_scraped_repos_amount(presentRepo: PaginatedList[Repository], clone_directory_path: str):
+    csv_path = os.path.join(clone_directory_path, "organization_repos.csv")
+    if not os.path.exists(csv_path):
         return 0
 
-    csv_path = os.path.join(clone_directory_path, "organization_repos.csv")
-    with open(csv_path, mode="r", encoding="utf-8", errors="replace") as file:
-        reader = list(csv.reader(file, delimiter=";"))
-        row_count = len(reader)
-    return row_count - 1
+    with open(csv_path, mode="r", encoding="utf-8") as file:
+        reader = csv.DictReader(file, delimiter=";")
+
+        repos = sorted(presentRepo, key=lambda r: r.id)
+        
+        rows = list(reader)
+        rows.sort(key=lambda r: int(r[COMPARE_HEADER]))
+        
+        offset = 0
+        max_len = min(len(repos), len(rows))
+        
+        while offset < max_len:
+            repo_id = repos[offset].id
+            row_id = int(rows[offset][COMPARE_HEADER])
+
+            if repo_id != row_id:
+                return offset
+
+            offset += 1
+
+        return offset
 
 
 def process_organization(
@@ -61,7 +79,8 @@ def process_organization(
 
     os.makedirs(clone_directory_path, exist_ok=True)
 
-    amount_to_skip = get_already_scraped_repos_amount(clone_directory_path)
+    log(thread_nr, "INFO", f"Checking if repos might get skipped")
+    amount_to_skip = get_already_scraped_repos_amount(repos, clone_directory_path)
     if amount_to_skip > 0:
         log(thread_nr, "INFO", f"Skipping {amount_to_skip} repos as they already exist")
 
