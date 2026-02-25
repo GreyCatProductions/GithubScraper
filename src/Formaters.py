@@ -2,6 +2,7 @@ import os.path
 import time
 from datetime import datetime
 from typing import Callable
+from github import Github
 from github.Branch import Branch
 from github.Repository import Repository
 from github.Issue import Issue
@@ -139,41 +140,35 @@ def get_formatted_forks(
         while retries > 0:
             try:
                 try:
-                    fork_owner = fork.owner.name
-                except (AttributeError, UnknownObjectException):
-                    fork_owner = "None"
-                try:
-                    fork_owner_login = fork.owner.login
-                except (AttributeError, UnknownObjectException):
-                    fork_owner_login = "None"
-                try:
-                    fork_owner_id = fork.owner.id
-                except (AttributeError, UnknownObjectException):
-                    fork_owner_id = "None"
+                    fork_owner: NamedUser | None = fork.owner
+                except GithubException:
+                    fork_owner = None
 
-                # Compare the branches (default is usually 'main' or 'master')
+                if fork_owner:
+                    fork_owner_id: int | None = fork_owner.id
+                    fork_owner_login: str | None = fork_owner.login
+                else:
+                    fork_owner_id = None
+                    fork_owner_login = None
+
                 try:
-                    comparison: Comparison = fork.compare(
+                    comparison: Comparison | None = fork.compare(
                         f"{organization_name}:{repository.default_branch}",
                         fork.default_branch,
                     )
                 except Exception:
                     comparison = None
 
-                try:
+                commits_ahead = "No Comparison"
+                commits_behind = "No Comparison"
+                if comparison:
                     commits_ahead = comparison.ahead_by
-                except Exception:
-                    commits_ahead = "Error."
-
-                try:
                     commits_behind = comparison.behind_by
-                except Exception:
-                    commits_behind = "Error."
 
                 try:
-                    fork_subs = fork.subscribers_count
+                    fork_subs: int | None = fork.subscribers_count
                 except Exception as e:
-                    fork_subs = "Error."
+                    fork_subs = None
 
                 forks.append(
                     __format_fork(
@@ -448,12 +443,12 @@ def __format_fork(
     organization_name: str,
     repo: Repository,
     fork: Repository,
-    fork_owner: NamedUser,
-    fork_owner_id: NamedUser,
-    fork_owner_login: NamedUser,
-    fork_subs: Repository,
-    commits_ahead: int,
-    commits_behind: int,
+    fork_owner: NamedUser | None,
+    fork_owner_id: int | None,
+    fork_owner_login: str | None,
+    fork_subs: int | None,
+    commits_ahead: int | str,
+    commits_behind: int | str,
 ) -> list:
     return [
         organization_name,
