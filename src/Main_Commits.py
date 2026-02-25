@@ -35,7 +35,7 @@ from threading import Lock
 from git import Repo as GitRepo
 from git.exc import GitError, GitCommandError
 
-import Columns_Maper
+import src.ColumnsMap as ColumnsMap
 from Logger import log
 from Scrape_Manager import write_csv
 
@@ -55,7 +55,7 @@ ORGANIZATIONS = [
 
 ]
 GITHUB_DATA_ROOT = "./github_data"
-COMMIT_COLUMNS = Columns_Maper.get_columns_map()["commits"]
+COMMIT_COLUMNS = ColumnsMap.COLUMNS_MAP["commits"]
 
 # Use very short temp path on D: to avoid Windows 260-char limit
 TEMP_ROOT = r"D:\\t"
