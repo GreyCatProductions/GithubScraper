@@ -10,6 +10,8 @@ from github.NamedUser import NamedUser
 from github.PullRequest import PullRequest
 from github.Commit import Commit
 from github.Comparison import Comparison
+from github.Organization import Organization
+from github.AuthenticatedUser import AuthenticatedUser
 import pathlib
 from github import GithubException
 from git import Repo as LGitRepo
@@ -22,7 +24,7 @@ from Logger import log
 from collections import defaultdict
 
 
-def get_organization(organization_name: str, github, scraper_nr):
+def get_organization(organization_name: str, github: Github, scraper_nr) -> Organization | NamedUser | AuthenticatedUser:
     try:
         return github.get_organization(organization_name)
     except UnknownObjectException:

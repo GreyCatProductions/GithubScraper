@@ -5,9 +5,13 @@ from Scrape_Manager import process_organization
 from threading import Lock, Thread
 from queue import Empty, Queue
 from github import Github
+from github.Repository import Repository
 from GitHubTokenReader import get_tokens
 import csv
 from CustomExceptions import TokenException, GithubFetchException
+from schema.ThreadTasks import OrgState, RepoTask
+from Formaters import get_organization
+from src.TaskPreparer import prepare_tasks
 
 csv.field_size_limit(100000000)
 
@@ -17,6 +21,8 @@ MAX_THREADS_PER_ORG = 3
 
 retries_lock = Lock()
 
+repo_tasks: List[RepoTask] = []
+org_tasks: List[OrgState] = []
 
 def token_worker(github: Github, org_queue: Queue[tuple[str, int]], token_id: int):
     while True:
@@ -77,27 +83,15 @@ def load_organizations() -> List[str]:
     with open(PATH_TO_ORGANIZATIONS, "r", encoding="utf-8") as f:
         return [line.strip() for line in f if line.strip()]
 
-
 def main():
-    organizations = load_organizations()
-    print(f"Loaded {len(organizations)} organizations.")
-
-    org_queue: Queue[tuple[str, int]] = Queue()
-    for org in organizations:
-        org_queue.put((org, 0))
-
     github_tokens: list[Github] = [Github(token) for token in get_tokens()]
     available_tokens = len(github_tokens)
-
-    threads = []
-
-    for i in range(available_tokens):
-        t = Thread(target=token_worker, args=(github_tokens[i], org_queue, i))
-        t.start()
-        threads.append(t)
-
-    for t in threads:
-        t.join()
+    print(f"Loaded {available_tokens} tokens.")
+    
+    organizations = load_organizations()
+    print(f"Loaded {len(organizations)} organizations.")
+    
+    prepare_tasks(organizations, github_tokens)
 
     print("All organizations processed.")
 
