@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from typing import Dict, List
 from Logger import log
 from Scrape_Manager import process_organization
@@ -11,17 +12,15 @@ import csv
 from CustomExceptions import TokenException, GithubFetchException
 from schema.ThreadTasks import OrgState, RepoTask
 from Formaters import get_organization
-from src.TaskPreparer import prepare_tasks
+from TaskPreparer import prepare_tasks
 
 csv.field_size_limit(100000000)
 
-PATH_TO_ORGANIZATIONS = "../organizations.txt"
+PATH_TO_ORGANIZATIONS = Path("~/GithubScraper/organizations.txt").expanduser()
 MAX_RETRIES_PER_ORG = 5
-MAX_THREADS_PER_ORG = 3
 
 retries_lock = Lock()
 
-repo_tasks: List[RepoTask] = []
 org_tasks: List[OrgState] = []
 
 def token_worker(github: Github, org_queue: Queue[tuple[str, int]], token_id: int):
@@ -91,7 +90,7 @@ def main():
     organizations = load_organizations()
     print(f"Loaded {len(organizations)} organizations.")
     
-    prepare_tasks(organizations, github_tokens)
+    org_tasks = prepare_tasks(organizations, github_tokens) #blocking, uses all available threads to fetch repos
 
     print("All organizations processed.")
 

@@ -8,6 +8,8 @@ from github.NamedUser import NamedUser
 from Formaters import get_organization
 from Logger import log
 from schema.ThreadTasks import OrgState
+from github.PaginatedList import PaginatedList
+from github.Repository import Repository
 
 MAX_RETRIES_PER_ORG = 3
 MAX_THREADS_PER_ORG = 3
@@ -45,11 +47,19 @@ def _prepare_organization_task(token: Github, index: int, target: List[OrgState]
             organization: Organization | NamedUser | AuthenticatedUser = (
                 get_organization(org, token, index)
             )
-            new_org_task: OrgState = OrgState(organization, MAX_THREADS_PER_ORG)
+            if not organization:
+                raise Exception("Returned organization is null!")
+            
+            repos: PaginatedList[Repository] = organization.get_repos(type="all")
+            if not repos:
+                raise Exception(f"Failed to get repos for {org}!")
+            
+            new_org_task: OrgState = OrgState(organization, MAX_THREADS_PER_ORG, repos)
             target.append(new_org_task)
-            log(index, "INFO", f"Sucessfully fetched repos and prepared tasks for: {org}")
+            log(index, "INFO", f"Successfully fetched repos and prepared task object for: {org}")
+            
         except Exception as e:
-            if tries <= MAX_RETRIES_PER_ORG:
+            if tries < MAX_RETRIES_PER_ORG:
                 log(
                     index,
                     "WARNING",

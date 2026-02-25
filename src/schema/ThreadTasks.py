@@ -1,8 +1,11 @@
 from dataclasses import dataclass, field
 from threading import Lock, Semaphore
+from typing import List
 from github.Organization import Organization
 from github.AuthenticatedUser import AuthenticatedUser
 from github.NamedUser import NamedUser
+from github.PaginatedList import PaginatedList
+from github.Repository import Repository
 
 @dataclass(frozen=True, slots=True)
 class RepoTask:
@@ -15,6 +18,7 @@ class RepoTask:
 class OrgState:
     organization: Organization | NamedUser | AuthenticatedUser
     max_workers: int
+    repos: PaginatedList[Repository]
     _sem: Semaphore = field(init=False)
     _lock: Lock = field(default_factory=Lock, init=False)
     active_workers: int = 0
