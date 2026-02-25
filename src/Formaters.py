@@ -2,12 +2,17 @@ import os.path
 import time
 from datetime import datetime
 from typing import Callable
-from github import Issue, NamedUser, PullRequest, Commit, Github
 from github.Branch import Branch
 from github.Repository import Repository
+from github.Issue import Issue
+from github.NamedUser import NamedUser
+from github.PullRequest import PullRequest
+from github.Commit import Commit
+from github.Comparison import Comparison
 import pathlib
 from github import GithubException
-from git import Repo
+from git import Repo as LGitRepo
+from git import Commit as LGitCommit
 from git.exc import GitError
 from github.GithubException import RateLimitExceededException, UnknownObjectException
 from Rate_Limiter import wait_for_reset_ratelimit
@@ -24,7 +29,7 @@ def get_organization(organization_name: str, github, scraper_nr):
             return github.get_user(organization_name)
         except Exception as e:
             log(scraper_nr, "ERROR", f"Failed to get user {e}")
-            Exception("Failed to get organization")
+            raise Exception("Failed to get user")
 
 
 def get_formatted_issues(repository: Repository, github_gmail, scraper_nr):
@@ -148,7 +153,7 @@ def get_formatted_forks(
 
                 # Compare the branches (default is usually 'main' or 'master')
                 try:
-                    comparison = fork.compare(
+                    comparison: Comparison = fork.compare(
                         f"{organization_name}:{repository.default_branch}",
                         fork.default_branch,
                     )
@@ -214,13 +219,13 @@ def get_formatted_pulls(
     return pulls
 
 
-def get_formatted_commits(repository, organization_name, scraper_nr):
+def get_formatted_commits(repository: Repository, organization_name: str, scraper_nr: int):
     formatted_commits = []
     with tempfile.TemporaryDirectory() as tmp_dir_name:
         repo_clone = None
         tmp_dir = pathlib.Path(os.path.join(tmp_dir_name, str(scraper_nr)))
         try:
-            Repo.clone_from(repository.clone_url, f"{tmp_dir}")
+            LGitRepo.clone_from(repository.clone_url, f"{tmp_dir}")
         except GitError:
             log(scraper_nr, "WARNING", f"Likely already exists repo: {repository.name}")
         except Exception as e:
@@ -231,7 +236,7 @@ def get_formatted_commits(repository, organization_name, scraper_nr):
             )
 
         try:
-            repo_clone = Repo(tmp_dir)
+            repo_clone = LGitRepo(tmp_dir)
             for commit in repo_clone.iter_commits():
                 formatted_commits.append(
                     __format_commit(organization_name, repository, commit)
@@ -512,7 +517,7 @@ def __format_pull(organization_name: str, repo: Repository, pull: PullRequest) -
     ]
 
 
-def __format_commit(organization_name: str, repo: Repository, commit: Commit) -> list:
+def __format_commit(organization_name: str, repo: Repository, commit: LGitCommit) -> list:
     author_login = getattr(commit.author, "login", None)
     committer_login = getattr(commit.committer, "login", None)
     return [
@@ -528,7 +533,7 @@ def __format_commit(organization_name: str, repo: Repository, commit: Commit) ->
         committer_login,
         commit.stats.total["deletions"],
         commit.stats.total["insertions"],
-        __format_timestamp(commit.authored_datetime),
+        __format_timestamp(commit.committed_datetime),
         __format_timestamp(commit.authored_datetime),
         commit.stats.total["files"],
         commit.binsha.hex(),
