@@ -12,7 +12,6 @@ from github.PaginatedList import PaginatedList
 from github.Repository import Repository
 
 MAX_RETRIES_PER_ORG = 3
-MAX_THREADS_PER_ORG = 3
 org_queue: Queue[tuple[str, int]] = Queue()
 
 def prepare_tasks(organizations: List[str], tokens: list[Github]) -> List[OrgState]:
@@ -54,7 +53,7 @@ def _prepare_organization_task(token: Github, index: int, target: List[OrgState]
             if not repos:
                 raise Exception(f"Failed to get repos for {org}!")
             
-            new_org_task: OrgState = OrgState(organization, MAX_THREADS_PER_ORG, repos)
+            new_org_task: OrgState = OrgState(organization, repos)
             target.append(new_org_task)
             log(index, "INFO", f"Successfully fetched repos and prepared task object for: {org}")
             
