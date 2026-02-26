@@ -1,3 +1,7 @@
+
+from RequestLimiter import install
+install() #must be before github imports
+
 from pathlib import Path
 from typing import List
 from github.Repository import Repository
@@ -13,8 +17,8 @@ from TaskPreparer import prepare_tasks
 csv.field_size_limit(100000000)
 
 PATH_TO_ORGANIZATIONS = Path("../organizations.txt")
-MAX_THREADS_PER_ORG = 3
-MAX_RETRIES_PER_REPO = 3
+MAX_THREADS_PER_ORG = 12
+MAX_RETRIES_PER_REPO = 5
 PATH_TO_GITHUB_DATA = Path("../github_data")
 
 retries_lock = Lock()

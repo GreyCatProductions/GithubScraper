@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 from queue import Empty, Queue
 from threading import Thread
+from time import sleep
 from typing import Iterable, List
 from github import Github
 from github.Organization import Organization
@@ -15,7 +16,7 @@ from schema.ThreadTasks import OrgSmartTask
 from github.PaginatedList import PaginatedList
 from github.Repository import Repository
 
-MAX_RETRIES_PER_ORG = 3
+MAX_RETRIES_PER_ORG = 5
 COMPARE_HEADER = "Repo_ID"
 org_queue: Queue[tuple[str, int]] = Queue()
 
@@ -103,7 +104,7 @@ def _prepare_organization_task(token: Github, index: int, target: List[OrgSmartT
                     "WARNING",
                     f"Retry {tries}/{MAX_RETRIES_PER_ORG} for {org}: {e}",
                 )
-                
+                sleep(3)
                 org_queue.put((org, tries + 1))
             else:
                 log(
