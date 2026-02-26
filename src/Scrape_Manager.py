@@ -45,9 +45,9 @@ def process_repo(repository: Repository, repo_task: RepoTask, path: Path):
     
     thread_id = repo_task.thread_id
     github: Github = repo_task.github
-    org_name: str = str(repo_task.organization)
+    org_name: str = str(repo_task.organization.name)
 
-    log(thread_id, "INFO", f"Processing repo {repository.name} | {org_name})")
+    log(thread_id, "INFO", f"Processing repo {repository.name} | org={org_name})")
 
     repo_data, summary_data = get_formatted_repository_data(
         repository, org_name, thread_id

@@ -28,7 +28,6 @@ def handle_org_task(repo: Repository, repoTask: RepoTask, orgTask: OrgSmartTask,
     
     orgTask.acquire_slot()
     try:
-    
         while True:
             try:
                 process_repo(repo, repoTask, save_path)
@@ -70,6 +69,7 @@ def worker(github: Github, token_id: int):
                 break
                 
         if not repo or not repoTask or not orgTask: 
+            log(token_id, "INFO", "Could not find any task to do. Disabling")
             return
         
         handle_org_task(repo, repoTask, orgTask, token_id, github)
