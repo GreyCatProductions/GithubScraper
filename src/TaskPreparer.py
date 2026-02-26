@@ -1,6 +1,10 @@
+import csv
+import itertools
+import os
+from pathlib import Path
 from queue import Empty, Queue
 from threading import Thread
-from typing import List
+from typing import Iterable, List
 from github import Github
 from github.Organization import Organization
 from github.AuthenticatedUser import AuthenticatedUser
@@ -12,9 +16,10 @@ from github.PaginatedList import PaginatedList
 from github.Repository import Repository
 
 MAX_RETRIES_PER_ORG = 3
+COMPARE_HEADER = "Repo_ID"
 org_queue: Queue[tuple[str, int]] = Queue()
 
-def prepare_tasks(organizations: List[str], tokens: list[Github]) -> List[OrgState]:
+def prepare_tasks(organizations: List[str], tokens: list[Github], path_to_github_data: Path) -> List[OrgState]:
     for organization in organizations:
         org_queue.put((organization, 0))
 
@@ -23,7 +28,7 @@ def prepare_tasks(organizations: List[str], tokens: list[Github]) -> List[OrgSta
     threads = []
 
     for i in range(len(tokens)):
-        t = Thread(target=_prepare_organization_task, args=((tokens[i], i, results)))
+        t = Thread(target=_prepare_organization_task, args=((tokens[i], i, results, path_to_github_data)))
         t.start()
         threads.append(t)
 
@@ -33,8 +38,35 @@ def prepare_tasks(organizations: List[str], tokens: list[Github]) -> List[OrgSta
     print(f"All organization objects ready. Made {len(results)} / {len(organizations)} organization task objects successfully")
     return results
 
+def _get_already_scraped_repos_amount(presentRepo: PaginatedList[Repository], clone_directory_path: str):
+    csv_path = os.path.join(clone_directory_path, "organization_repos.csv")
+    if not os.path.exists(csv_path):
+        return 0
 
-def _prepare_organization_task(token: Github, index: int, target: List[OrgState]):
+    with open(csv_path, mode="r", encoding="utf-8") as file:
+        reader = csv.DictReader(file, delimiter=";")
+
+        repos = sorted(presentRepo, key=lambda r: r.id)
+        
+        rows = list(reader)
+        rows.sort(key=lambda r: int(r[COMPARE_HEADER]))
+        
+        offset = 0
+        max_len = min(len(repos), len(rows))
+        
+        while offset < max_len:
+            repo_id = repos[offset].id
+            row_id = int(rows[offset][COMPARE_HEADER])
+
+            if repo_id != row_id:
+                return offset
+
+            offset += 1
+
+        return offset
+
+
+def _prepare_organization_task(token: Github, index: int, target: List[OrgState], path_to_github_data: Path):
     while True:
         try:
             org, tries = org_queue.get_nowait()
@@ -53,7 +85,15 @@ def _prepare_organization_task(token: Github, index: int, target: List[OrgState]
             if not repos:
                 raise Exception(f"Failed to get repos for {org}!")
             
-            new_org_task: OrgState = OrgState(organization, repos)
+            path = os.path(path_to_github_data} + {org}")
+            os.makedirs(path, exist_ok=True)
+
+            log(index, "INFO", f"Checking if repos for {org} might get skipped")
+            amount_to_skip = _get_already_scraped_repos_amount(repos, path)
+            if amount_to_skip > 0:
+                log(index, "INFO", f"Skipping {amount_to_skip} repos as they already exist")
+                
+            new_org_task: OrgState = OrgState(organization=organization, repos=repos, offset=amount_to_skip, org_path=org_path)
             target.append(new_org_task)
             log(index, "INFO", f"Successfully fetched repos and prepared task object for: {org}")
             
