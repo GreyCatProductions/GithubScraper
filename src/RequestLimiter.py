@@ -27,7 +27,7 @@ def _patched_send(self, request, **kwargs):
     resp = _original_send(self, request, **kwargs)
     print(" ->", resp.status_code)
 
-    if resp.status_code == 403:
+    if resp.status_code == 403 or resp.status_code == 429:
         with _block_lock:
             new_block = time.time() + BLOCK_SECONDS
             if new_block > _blocked_until:
