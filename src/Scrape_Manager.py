@@ -1,5 +1,6 @@
 import csv
 from pathlib import Path
+from threading import Semaphore
 from typing import List
 import pandas as pd
 import os
@@ -9,21 +10,21 @@ from Logger import log
 import csv
 from github.Repository import Repository
 from github import Github
-
 from schema.ThreadTasks import RepoTask
 
 csv.field_size_limit(100000000)
-
+csv_lock: Semaphore = Semaphore(1)
 
 def write_csv(data, columns, filepath, sep=";"):
-    try:
-        df = pd.DataFrame(data, columns=columns)
-        if os.path.exists(filepath):
-            df.to_csv(filepath, mode="a", index=False, sep=sep, header=False)
-        else:
-            df.to_csv(filepath, mode="w", index=False, sep=sep, header=True)
-    except Exception as e:
-        print(f"Failed to create csv with columns: {columns}: " + str(e))
+    with csv_lock:
+        try:
+            df = pd.DataFrame(data, columns=columns)
+            if os.path.exists(filepath):
+                df.to_csv(filepath, mode="a", index=False, sep=sep, header=False)
+            else:
+                df.to_csv(filepath, mode="w", index=False, sep=sep, header=True)
+        except Exception as e:
+            print(f"Failed to create csv with columns: {columns}: " + str(e))
 
 
 def process_repo(repository: Repository, repo_task: RepoTask, path: Path):

@@ -11,7 +11,7 @@ from github.AuthenticatedUser import AuthenticatedUser
 from github.NamedUser import NamedUser
 from Formaters import get_organization
 from Logger import log
-from schema.ThreadTasks import OrgState
+from schema.ThreadTasks import OrgSmartTask
 from github.PaginatedList import PaginatedList
 from github.Repository import Repository
 
@@ -19,11 +19,11 @@ MAX_RETRIES_PER_ORG = 3
 COMPARE_HEADER = "Repo_ID"
 org_queue: Queue[tuple[str, int]] = Queue()
 
-def prepare_tasks(organizations: List[str], tokens: list[Github], path_to_github_data: Path) -> List[OrgState]:
+def prepare_tasks(organizations: List[str], tokens: list[Github], path_to_github_data: Path) -> List[OrgSmartTask]:
     for organization in organizations:
         org_queue.put((organization, 0))
 
-    results: List[OrgState] = []
+    results: List[OrgSmartTask] = []
 
     threads = []
 
@@ -38,8 +38,8 @@ def prepare_tasks(organizations: List[str], tokens: list[Github], path_to_github
     print(f"All organization objects ready. Made {len(results)} / {len(organizations)} organization task objects successfully")
     return results
 
-def _get_already_scraped_repos_amount(presentRepo: PaginatedList[Repository], clone_directory_path: str):
-    csv_path = os.path.join(clone_directory_path, "organization_repos.csv")
+def _get_already_scraped_repos_amount(presentRepo: PaginatedList[Repository], org_save_path: Path):
+    csv_path = os.path.join(org_save_path, "organization_repos.csv")
     if not os.path.exists(csv_path):
         return 0
 
@@ -66,7 +66,7 @@ def _get_already_scraped_repos_amount(presentRepo: PaginatedList[Repository], cl
         return offset
 
 
-def _prepare_organization_task(token: Github, index: int, target: List[OrgState], path_to_github_data: Path):
+def _prepare_organization_task(token: Github, index: int, target: List[OrgSmartTask], path_to_github_data: Path):
     while True:
         try:
             org, tries = org_queue.get_nowait()
@@ -75,9 +75,8 @@ def _prepare_organization_task(token: Github, index: int, target: List[OrgState]
 
         try:
             log(index, "INFO", f"Fetching repositories from: {org}")
-            organization: Organization | NamedUser | AuthenticatedUser = (
-                get_organization(org, token, index)
-            )
+            organization: Organization | NamedUser | AuthenticatedUser | None = (
+                get_organization(org, token, index))
             if not organization:
                 raise Exception("Returned organization is null!")
             
@@ -85,7 +84,7 @@ def _prepare_organization_task(token: Github, index: int, target: List[OrgState]
             if not repos:
                 raise Exception(f"Failed to get repos for {org}!")
             
-            path = os.path(path_to_github_data} + {org}")
+            path = path_to_github_data / org
             os.makedirs(path, exist_ok=True)
 
             log(index, "INFO", f"Checking if repos for {org} might get skipped")
@@ -93,7 +92,7 @@ def _prepare_organization_task(token: Github, index: int, target: List[OrgState]
             if amount_to_skip > 0:
                 log(index, "INFO", f"Skipping {amount_to_skip} repos as they already exist")
                 
-            new_org_task: OrgState = OrgState(organization=organization, repos=repos, offset=amount_to_skip, org_path=org_path)
+            new_org_task: OrgSmartTask = OrgSmartTask(organization=organization, repos=repos, offset=amount_to_skip, org_path=path)
             target.append(new_org_task)
             log(index, "INFO", f"Successfully fetched repos and prepared task object for: {org}")
             

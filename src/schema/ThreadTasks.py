@@ -14,6 +14,7 @@ class Status(Enum):
     AVAILABLE = "available"
     DOING = "doing"
     DONE = "done"
+    KILLED = "killed" #if done but not done properly
 
 @dataclass(slots=True)
 class RepoTask:
@@ -22,10 +23,16 @@ class RepoTask:
     retry_count: int = 0 #how many retries happened
     _state: Status = Status.AVAILABLE #what state
     github: Github | None = None
+    
+    def complete(self):
+        self._state = Status.DONE
+        
+    def kill(self):
+        self._state = Status.KILLED
 
 
 @dataclass(slots=True)
-class OrgState:
+class OrgSmartTask:
     organization: Organization | NamedUser | AuthenticatedUser
     repos: PaginatedList[Repository]
     offset: int

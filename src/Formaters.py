@@ -154,7 +154,7 @@ def get_formatted_users(repository: Repository, github_gmail, scraper_nr):
     try:
         users_fetch = retry_request(repository.get_contributors, github_gmail, scraper_nr)
         if not users_fetch:
-            log(scraper_nr, "WARNING", "Failed to fetch users!" + str(e))
+            log(scraper_nr, "WARNING", "Failed to fetch users!")
             return []
         
         for user in users_fetch:
@@ -230,7 +230,7 @@ def get_formatted_forks(
         if not formated_fork:
             log(scraper_nr, "ERROR", f"Failed to get fork {fork.name}. Skipping it")
             continue
-        forks.append(fork)
+        forks.append(formated_fork)
     return forks
 
 
@@ -244,7 +244,6 @@ def get_formatted_pulls(
         return []
     
     for pull in pulls_iter:
-        formatted_pull = None
         try:
             formatted_pull = retry_request(
                 _format_pull,
@@ -254,10 +253,11 @@ def get_formatted_pulls(
                 repository,
                 pull,
             )
+            if formatted_pull is not None:
+                pulls.append(formatted_pull)
+                
         except Exception as e:
             log(scraper_nr, "WARNING", f"Failed to get pull {e}. Skipping it")
-
-        pulls.append(formatted_pull)
     return pulls
 
 
@@ -270,7 +270,6 @@ def get_formatted_commits(
         tmp_dir = pathlib.Path(os.path.join(tmp_dir_name, str(scraper_nr)))
         try:
             LGitRepo.clone_from(repository.clone_url, f"{tmp_dir}")
-            return []
         except GitError:
             log(scraper_nr, "WARNING", f"Likely already exists repo: {repository.name}")
         except Exception as e:
@@ -279,6 +278,9 @@ def get_formatted_commits(
                 "ERROR",
                 f"An exception occurred for Repo: {repository.name} {e}",
             )
+            
+        if not tmp_dir or not tmp_dir.exists():
+            return []
 
         try:
             repo_clone = LGitRepo(tmp_dir)
