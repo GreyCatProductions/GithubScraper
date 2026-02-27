@@ -1,41 +1,119 @@
-import threading
+from threading import Semaphore, Lock
 import time
 import requests
+from urllib.parse import urlparse
 
 _original_send = requests.Session.send
-_block_lock = threading.Lock()
-_blocked_until = 0.0
-MAX_RETRIES_403 = 5
+_global_block_lock = Lock()
+_global_blocked_until = 0.0
+_rate_lock = Lock()
+_second_window_start = time.monotonic()
+_minute_window_start = time.monotonic()
+_second_count = 0
+_minute_count = 0
+
 BLOCK_SECONDS = 70
+MAX_CONCURRENT_REQUESTS = 5
+WAIT_BELOW_PRIMARY_LIMIT = 100
+MAX_REQUESTS_PER_MINUTE = 800 #api limit is 900
+MAX_REQUESTS_PER_SECOND = 10 #theoretically its max reqeusts p minute / 60
+
+concurrent_sem: Semaphore = Semaphore(MAX_CONCURRENT_REQUESTS)
+
+def _is_github_request(url: str) -> bool:
+    if not url:
+        return False
+    host = (urlparse(url).hostname or "").lower()
+    return host == "github.com" or host.endswith(".github.com")
 
 def _wait_if_blocked():
-    global _blocked_until
+    global _global_blocked_until
     while True:
-        with _block_lock:
-            now = time.time()
-            wait = _blocked_until - now
+        with _global_block_lock:
+            now = time.monotonic()
+            wait = _global_blocked_until - now
         if wait <= 0:
             return
         time.sleep(wait)
 
+def _acquire_rate_slot():
+    global _second_window_start, _minute_window_start, _second_count, _minute_count
+
+    while True:
+        sleep_for = 0.0
+        now = time.monotonic()
+        with _rate_lock:
+            if now - _second_window_start >= 1.0:
+                _second_window_start = now
+                _second_count = 0
+            if now - _minute_window_start >= 60.0:
+                _minute_window_start = now
+                _minute_count = 0
+
+            second_full = _second_count >= MAX_REQUESTS_PER_SECOND
+            minute_full = _minute_count >= MAX_REQUESTS_PER_MINUTE
+
+            if not second_full and not minute_full:
+                _second_count += 1
+                _minute_count += 1
+                return
+
+            if second_full:
+                sleep_for = max((_second_window_start + 1.0) - now, 0.01)
+            if minute_full:
+                minute_sleep = max((_minute_window_start + 60.0) - now, 0.01)
+                sleep_for = max(sleep_for, minute_sleep)
+
+        time.sleep(sleep_for)
+
 def _patched_send(self, request, **kwargs):
-    global _blocked_until
+    global _global_blocked_until
+
+    if not _is_github_request(request.url):
+        return _original_send(self, request, **kwargs)
 
     _wait_if_blocked()
+    _acquire_rate_slot()
 
-    print("HTTP:", request.method, request.url)
-    resp = _original_send(self, request, **kwargs)
-    print(" ->", resp.status_code)
+    concurrent_sem.acquire()
+    
+    try:
+        resp = _original_send(self, request, **kwargs)
+        
+        if resp.status_code not in {200, 202} :
+            print("HTTP:", request.method, request.url)
+            print(" ->", resp.status_code)
+    finally:
+        concurrent_sem.release()
+    
+    remaining_raw = resp.headers.get("X-RateLimit-Remaining")
+    reset_time_raw = resp.headers.get("X-RateLimit-Reset")
+    
+    if remaining_raw is not None:
+        try:
+            remaining = int(remaining_raw)
+            if remaining < WAIT_BELOW_PRIMARY_LIMIT:
+                if reset_time_raw is not None:
+                    try:
+                        reset_time = int(reset_time_raw)   
+                        offset = 60
+                        sleep_time = max(reset_time - time.monotonic() + offset, 0)
+                        print(f"Sleeping for {sleep_time} because tickets left = {remaining} / {WAIT_BELOW_PRIMARY_LIMIT}")
+                        time.sleep(sleep_time)
+                        
+                    except ValueError:
+                        print(f"Reset time (non-int): {reset_time_raw}")
+        except ValueError:
+            print(f"RateLimit remaining header (non-int): {remaining_raw}")
 
     if resp.status_code == 403 or resp.status_code == 429:
-        with _block_lock:
-            new_block = time.time() + BLOCK_SECONDS
-            if new_block > _blocked_until:
-                _blocked_until = new_block
+        with _global_block_lock:
+            new_block = time.monotonic() + BLOCK_SECONDS
+            if new_block > _global_blocked_until:
+                _global_blocked_until = new_block
                 print(f"GLOBAL PAUSE for {BLOCK_SECONDS}s")
 
     return resp
 
-    return resp
 def install():
     requests.Session.send = _patched_send

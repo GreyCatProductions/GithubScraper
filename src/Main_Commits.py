@@ -210,7 +210,7 @@ def process_repo_commits(org: str, repo_info: dict, worker_id: int) -> int:
 
     # Use very short temp path: D:\\t\\<8-char-hash>
     os.makedirs(TEMP_ROOT, exist_ok=True)
-    short_hash = hashlib.md5(f"{org_name}_{repo_name}_{time.time()}".encode()).hexdigest()[:8]
+    short_hash = hashlib.md5(f"{org_name}_{repo_name}_{time.monotonic()}".encode()).hexdigest()[:8]
     clone_dest = os.path.join(TEMP_ROOT, short_hash)
 
     repo_clone = None
@@ -218,11 +218,11 @@ def process_repo_commits(org: str, repo_info: dict, worker_id: int) -> int:
 
     try:
         log(worker_id, "INFO", f"Cloning {repo_full_name} ...")
-        start_time = time.time()
+        start_time = time.monotonic()
 
         # Clone WITHOUT checkout to avoid Windows path limit errors
         repo_clone = GitRepo.clone_from(clone_url, clone_dest, no_checkout=True)
-        clone_time = time.time() - start_time
+        clone_time = time.monotonic() - start_time
         log(worker_id, "INFO", f"{repo_full_name}: Clone completed in {clone_time:.1f}s")
 
         # Get the default branch ref with improved detection
@@ -245,8 +245,8 @@ def process_repo_commits(org: str, repo_info: dict, worker_id: int) -> int:
 
         # Start commit iteration with progress logging
         log(worker_id, "INFO", f"{repo_full_name}: Starting commit iteration...")
-        last_log_time = time.time()
-        iteration_start = time.time()
+        last_log_time = time.monotonic()
+        iteration_start = time.monotonic()
 
         for commit in repo_clone.iter_commits(default_ref):
             try:
@@ -254,7 +254,7 @@ def process_repo_commits(org: str, repo_info: dict, worker_id: int) -> int:
                 total_commits += 1
 
                 # Log progress every 5000 commits or every 30 seconds
-                current_time = time.time()
+                current_time = time.monotonic()
                 if total_commits % 5000 == 0 or (current_time - last_log_time > 30):
                     elapsed = current_time - iteration_start
                     rate = total_commits / elapsed if elapsed > 0 else 0
@@ -279,7 +279,7 @@ def process_repo_commits(org: str, repo_info: dict, worker_id: int) -> int:
                 write_csv(commit_rows, COMMIT_COLUMNS, csv_path)
             commit_rows.clear()
 
-        total_time = time.time() - start_time
+        total_time = time.monotonic() - start_time
         log(worker_id, "INFO", f"Completed {repo_full_name}: {total_commits} commits in {total_time:.1f}s")
         return total_commits
 
