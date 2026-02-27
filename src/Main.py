@@ -13,6 +13,7 @@ from GitHubTokenReader import get_tokens
 import csv
 from schema.ThreadTasks import OrgSmartTask, RepoTask
 from TaskPreparer import prepare_tasks
+from tqdm import tqdm
 
 csv.field_size_limit(100000000)
 
@@ -25,7 +26,7 @@ retries_lock = Lock()
 
 orgTasks: List[OrgSmartTask] = []
 
-def handle_org_task(repo: Repository, repoTask: RepoTask, orgTask: OrgSmartTask, token_id: int, github: Github):
+def handle_org_task(repo: Repository, repoTask: RepoTask, orgTask: OrgSmartTask, token_id: int, github: Github, pbar: tqdm):
     repoTask.thread_id = token_id
     repoTask.github = github
     save_path: Path = orgTask.org_path
@@ -36,6 +37,7 @@ def handle_org_task(repo: Repository, repoTask: RepoTask, orgTask: OrgSmartTask,
             try:
                 process_repo(repo, repoTask, save_path)
                 repoTask.complete()
+                pbar.update(1)
                 break
             except Exception as e:
                 log(
@@ -52,6 +54,7 @@ def handle_org_task(repo: Repository, repoTask: RepoTask, orgTask: OrgSmartTask,
                     f"repository: " + repo.name + "reached max amount of retries. Killing it",
                     )
                     repoTask.kill()
+                    pbar.update(1)
                     break
     
     except Exception as e:
@@ -60,7 +63,7 @@ def handle_org_task(repo: Repository, repoTask: RepoTask, orgTask: OrgSmartTask,
     finally:
         orgTask.release_slot()
 
-def worker(github: Github, token_id: int):
+def worker(github: Github, token_id: int, pbar: tqdm):
     while True:
         repo, repoTask, orgTask = None, None, None
         for iterOrgTask in orgTasks:
@@ -76,7 +79,7 @@ def worker(github: Github, token_id: int):
             log(token_id, "INFO", "Could not find any task to do. Disabling")
             return
         
-        handle_org_task(repo, repoTask, orgTask, token_id, github)
+        handle_org_task(repo, repoTask, orgTask, token_id, github, pbar)
 
 def load_organizations() -> List[str]:
     with open(PATH_TO_ORGANIZATIONS, "r", encoding="utf-8") as f:
@@ -93,16 +96,18 @@ def main():
     global orgTasks
     orgTasks = prepare_tasks(organizations, github_tokens, PATH_TO_GITHUB_DATA) #blocking, uses all available threads to fetch repos and only add the ones that are not already processed
 
-    
+    total_repos = sum(orgTask.repos.totalCount - orgTask.offset for orgTask in orgTasks)
+
     threads = []
 
-    for i in range(len(github_tokens)):
-        t = Thread(target=worker, args=((github_tokens[i], i)))
-        t.start()
-        threads.append(t)
+    with tqdm(total=total_repos, unit="repo", desc="Scraping") as pbar:
+        for i in range(len(github_tokens)):
+            t = Thread(target=worker, args=((github_tokens[i], i, pbar)))
+            t.start()
+            threads.append(t)
 
-    for t in threads:
-        t.join()
+        for t in threads:
+            t.join()
         
     print("All organizations processed.")
 
