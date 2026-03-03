@@ -1,4 +1,3 @@
-
 from RequestLimiter import install
 install() #must be before github imports
 
@@ -9,15 +8,18 @@ from Logger import log
 from Scrape_Manager import process_repo
 from threading import Lock, Thread
 from github import Github
-from GitHubTokenReader import get_tokens
 import csv
 from schema.ThreadTasks import OrgSmartTask, RepoTask
 from TaskPreparer import prepare_tasks
 from tqdm import tqdm
+from dotenv import load_dotenv
+import os
+
+
+load_dotenv()
 
 csv.field_size_limit(100000000)
 
-PATH_TO_ORGANIZATIONS = Path("../organizations.txt")
 MAX_THREADS_PER_ORG = 12
 MAX_RETRIES_PER_REPO = 5
 PATH_TO_GITHUB_DATA = Path("../github_data")
@@ -81,19 +83,17 @@ def worker(github: Github, token_id: int, pbar: tqdm):
         
         handle_org_task(repo, repoTask, orgTask, token_id, github, pbar)
 
-def load_organizations() -> List[str]:
-    with open(PATH_TO_ORGANIZATIONS, "r", encoding="utf-8") as f:
-        return [line.strip() for line in f if line.strip()]
-
 def main():
-    github_tokens: list[Github] = [Github(token) for token in get_tokens()]
+    tokens_raw = os.getenv("GITHUB_TOKENS", "")
+    organizations_raw = os.getenv("ORGANIZATIONS", "")
+    tokens_list = [t.strip() for t in tokens_raw.split(",") if t.strip()]
+    organizations = [org.strip() for org in organizations_raw.split(",") if org.strip()]
+    github_tokens: list[Github] = [Github(token) for token in tokens_list]
     available_tokens = len(github_tokens)
     if available_tokens <= 0:
         raise Exception("No tokens loaded!")
     
     print(f"Loaded {available_tokens} tokens.")
-    
-    organizations = load_organizations()
     print(f"Loaded {len(organizations)} organizations.")
     
     global orgTasks
