@@ -26,7 +26,7 @@ def retry_request(func: Callable, github_gmail: Github, scraper_nr, *args, **kwa
 
 def _wait_for_reset_ratelimit(g: Github):
     reset_time = g.rate_limiting_resettime
-    current_time = time.monotonic()
+    current_time = time.time()
     offset = 300
     sleep_time = reset_time - current_time + offset
 

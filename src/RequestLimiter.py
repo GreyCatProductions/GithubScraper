@@ -10,8 +10,8 @@ _original_send = requests.Session.send
 _global_block_lock = Lock()
 _global_blocked_until = 0.0
 _rate_lock = Lock()
-_second_window_start = time.monotonic()
-_minute_window_start = time.monotonic()
+_second_window_start = time.time()
+_minute_window_start = time.time()
 _second_count = 0
 _minute_count = 0
 
@@ -33,7 +33,7 @@ def _wait_if_blocked():
     global _global_blocked_until
     while True:
         with _global_block_lock:
-            now = time.monotonic()
+            now = time.time()
             wait = _global_blocked_until - now
         if wait <= 0:
             return
@@ -44,7 +44,7 @@ def _acquire_rate_slot():
 
     while True:
         sleep_for = 0.0
-        now = time.monotonic()
+        now = time.time()
         with _rate_lock:
             if now - _second_window_start >= 1.0:
                 _second_window_start = now
@@ -99,7 +99,7 @@ def _patched_send(self, request, **kwargs):
                     try:
                         reset_time = int(reset_time_raw)   
                         offset = 60
-                        sleep_time = max(reset_time - time.monotonic() + offset, 0)
+                        sleep_time = max(reset_time - time.time() + offset, 0)
                         log.info(f"Sleeping for {sleep_time}s — tickets left = {remaining} / {WAIT_BELOW_PRIMARY_LIMIT}")
                         time.sleep(sleep_time)
 
@@ -110,7 +110,7 @@ def _patched_send(self, request, **kwargs):
 
     if resp.status_code == 403 or resp.status_code == 429:
         with _global_block_lock:
-            new_block = time.monotonic() + BLOCK_SECONDS
+            new_block = time.time() + BLOCK_SECONDS
             if new_block > _global_blocked_until:
                 _global_blocked_until = new_block
                 log.warning(f"GLOBAL PAUSE for {BLOCK_SECONDS}s")
