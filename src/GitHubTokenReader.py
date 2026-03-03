@@ -3,7 +3,7 @@ from Logger import log
 
 def get_tokens():
     tokens = []
-    token_path = Path("../env/GitHubTokens.txt").expanduser()
+    token_path = Path("../env/GithubTokens.txt").expanduser()
     try:
         with open(token_path, 'r', encoding='utf-8') as file:
             for line in file:

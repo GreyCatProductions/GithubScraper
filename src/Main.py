@@ -88,6 +88,9 @@ def load_organizations() -> List[str]:
 def main():
     github_tokens: list[Github] = [Github(token) for token in get_tokens()]
     available_tokens = len(github_tokens)
+    if available_tokens <= 0:
+        raise Exception("No tokens loaded!")
+    
     print(f"Loaded {available_tokens} tokens.")
     
     organizations = load_organizations()
