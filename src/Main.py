@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import List
 from github.Repository import Repository
 from Logger import get_logger, setup_logging
-from Scrape_Manager import process_repo
+from ScrapeManager import process_repo
 from threading import Lock, Thread
 from github import Github
 import csv
@@ -26,7 +26,6 @@ csv.field_size_limit(100000000)
 
 log = get_logger(__name__)
 
-retries_lock = Lock()
 orgTasks: List[OrgSmartTask] = []
 
 def handle_org_task(repo: Repository, repoTask: RepoTask, orgTask: OrgSmartTask, token_id: int, github: Github, pbar: tqdm):

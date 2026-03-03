@@ -5,10 +5,12 @@ import pandas as pd
 import os
 import schema.ColumnsMap as ColumnsMap
 from Formaters import *
-import csv
 from github.Repository import Repository
 from github import Github
 from schema.ThreadTasks import RepoTask
+from Logger import get_logger
+
+log = get_logger(__name__)
 
 csv.field_size_limit(100000000)
 csv_lock: Semaphore = Semaphore(1)
@@ -22,7 +24,7 @@ def write_csv(data, columns, filepath, sep=";"):
             else:
                 df.to_csv(filepath, mode="w", index=False, sep=sep, header=True)
         except Exception as e:
-            print(f"Failed to create csv with columns: {columns}: " + str(e))
+            log.error(f"Failed to create csv with columns: {columns}: " + str(e))
 
 
 def process_repo(repository: Repository, repo_task: RepoTask, path: Path):
@@ -45,7 +47,7 @@ def process_repo(repository: Repository, repo_task: RepoTask, path: Path):
     github: Github = repo_task.github
     org_name: str = str(repo_task.organization.name)
 
-    log(thread_id, "INFO", f"Processing repo {repository.name} | org={org_name})")
+    log.info(f"Processing repo {repository.name} | org={org_name}")
 
     repo_data, summary_data = get_formatted_repository_data(
         repository, org_name, thread_id
@@ -53,33 +55,29 @@ def process_repo(repository: Repository, repo_task: RepoTask, path: Path):
     data["organization_repos"].append(repo_data)
     data["repos"].append(summary_data)
     data["issues"].extend(get_formatted_issues(repository, github, thread_id))
-    log(thread_id, "INFO", "issues processed")
+    log.info("issues processed")
     data["branches"].extend(get_formatted_branches(repository, github, thread_id))
-    log(thread_id, "INFO", "branches processed")
+    log.info("branches processed")
     data["contributions"].extend(
         get_formatted_contributions(
             repository, org_name, github, thread_id
         )
     )
-    log(thread_id, "INFO", "contributions processed")
+    log.info("contributions processed")
     data["users"].extend(get_formatted_users(repository, github, thread_id))
-    log(thread_id, "INFO", "users processed")
+    log.info("users processed")
     data["forks"].extend(
         get_formatted_forks(repository, org_name, github, thread_id)
     )
-    log(thread_id, "INFO", "forks processed")
+    log.info("forks processed")
     data["pulls"].extend(
         get_formatted_pulls(repository, org_name, github, thread_id)
     )
-    log(thread_id, "INFO", "pulls processed")
+    log.info("pulls processed")
     data["commits"].extend(get_formatted_commits(repository, org_name, thread_id))
-    log(thread_id,"INFO", "commits processed")
+    log.info("commits processed")
 
-    log(
-        thread_id,
-        "INFO",
-        f"Finished processing {repository.name} of organization {org_name}.",
-    )
+    log.info(f"Finished processing {repository.name} of organization {org_name}.")
 
     for key, columns in ColumnsMap.COLUMNS_MAP.items():
         csv_file = os.path.join(path, f"{key}.csv")

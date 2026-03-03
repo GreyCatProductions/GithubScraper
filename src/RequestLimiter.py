@@ -2,6 +2,9 @@ from threading import Semaphore, Lock
 import time
 import requests
 from urllib.parse import urlparse
+from Logger import get_logger
+
+log = get_logger(__name__)
 
 _original_send = requests.Session.send
 _global_block_lock = Lock()
@@ -80,9 +83,8 @@ def _patched_send(self, request, **kwargs):
     try:
         resp = _original_send(self, request, **kwargs)
         
-        if resp.status_code not in {200, 202} :
-            print("HTTP:", request.method, request.url)
-            print(" ->", resp.status_code)
+        if resp.status_code not in {200, 202}:
+            log.warning(f"HTTP {request.method} {request.url} -> {resp.status_code}")
     finally:
         concurrent_sem.release()
     
@@ -98,20 +100,20 @@ def _patched_send(self, request, **kwargs):
                         reset_time = int(reset_time_raw)   
                         offset = 60
                         sleep_time = max(reset_time - time.monotonic() + offset, 0)
-                        print(f"Sleeping for {sleep_time} because tickets left = {remaining} / {WAIT_BELOW_PRIMARY_LIMIT}")
+                        log.info(f"Sleeping for {sleep_time}s — tickets left = {remaining} / {WAIT_BELOW_PRIMARY_LIMIT}")
                         time.sleep(sleep_time)
-                        
+
                     except ValueError:
-                        print(f"Reset time (non-int): {reset_time_raw}")
+                        log.warning(f"Reset time (non-int): {reset_time_raw}")
         except ValueError:
-            print(f"RateLimit remaining header (non-int): {remaining_raw}")
+            log.warning(f"RateLimit remaining header (non-int): {remaining_raw}")
 
     if resp.status_code == 403 or resp.status_code == 429:
         with _global_block_lock:
             new_block = time.monotonic() + BLOCK_SECONDS
             if new_block > _global_blocked_until:
                 _global_blocked_until = new_block
-                print(f"GLOBAL PAUSE for {BLOCK_SECONDS}s")
+                log.warning(f"GLOBAL PAUSE for {BLOCK_SECONDS}s")
 
     return resp
 

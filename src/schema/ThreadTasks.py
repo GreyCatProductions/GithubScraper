@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from threading import Lock, Semaphore
+from threading import Lock
 from typing import List, Tuple
 from github import Github
 from github.Organization import Organization
