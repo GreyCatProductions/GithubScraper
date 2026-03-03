@@ -19,9 +19,10 @@ log = get_logger(__name__)
 
 MAX_RETRIES_PER_ORG = 5
 COMPARE_HEADER = "Repo_ID"
-org_queue: Queue[tuple[str, int]] = Queue()
 
 def prepare_tasks(organizations: List[str], tokens: list[Github], path_to_github_data: Path) -> List[OrgSmartTask]:
+    org_queue: Queue[tuple[str, int]] = Queue()
+    
     for organization in organizations:
         org_queue.put((organization, 0))
 
@@ -30,7 +31,7 @@ def prepare_tasks(organizations: List[str], tokens: list[Github], path_to_github
     threads = []
 
     for i in range(len(tokens)):
-        t = Thread(target=_prepare_organization_task, args=((tokens[i], i, results, path_to_github_data)))
+        t = Thread(target=_prepare_organization_task, args=((tokens[i], i, results, path_to_github_data, org_queue)))
         t.start()
         threads.append(t)
 
@@ -40,35 +41,26 @@ def prepare_tasks(organizations: List[str], tokens: list[Github], path_to_github
     log.info(f"All organization objects ready. Made {len(results)} / {len(organizations)} organization task objects successfully")
     return results
 
-def _get_already_scraped_repos_amount(presentRepo: PaginatedList[Repository], org_save_path: Path):
+def _get_already_scraped_repos_amount(presentRepo: PaginatedList[Repository], org_save_path):
     csv_path = os.path.join(org_save_path, "organization_repos.csv")
     if not os.path.exists(csv_path):
         return 0
 
     with open(csv_path, mode="r", encoding="utf-8") as file:
-        reader = csv.DictReader(file, delimiter=";")
+        scraped_ids: set[int] = {int(row[COMPARE_HEADER]) for row in csv.DictReader(file, delimiter=";")}
 
-        repos = sorted(presentRepo, key=lambda r: r.id)
-        
-        rows = list(reader)
-        rows.sort(key=lambda r: int(r[COMPARE_HEADER]))
-        
-        offset = 0
-        max_len = min(len(repos), len(rows))
-        
-        while offset < max_len:
-            repo_id = repos[offset].id
-            row_id = int(rows[offset][COMPARE_HEADER])
-
-            if repo_id != row_id:
-                return offset
-
-            offset += 1
-
-        return offset
+    count = 0
+    for repo in presentRepo:   
+        if repo.id in scraped_ids:
+            count += 1
+        else:
+            break
+    return count
 
 
-def _prepare_organization_task(token: Github, index: int, target: List[OrgSmartTask], path_to_github_data: Path):
+
+def _prepare_organization_task(token: Github, index: int, target: List[OrgSmartTask], 
+                               path_to_github_data: Path, org_queue: Queue[tuple[str, int]] = Queue()):
     while True:
         try:
             org, tries = org_queue.get_nowait()

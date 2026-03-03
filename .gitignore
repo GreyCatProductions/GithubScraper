@@ -3,3 +3,7 @@ venv/
 .venv/
 __pycache__/
 .log
+logs
+github_data/
+.idea
+data

@@ -83,7 +83,7 @@ def _patched_send(self, request, **kwargs):
     try:
         resp = _original_send(self, request, **kwargs)
         
-        if resp.status_code not in {200, 202}:
+        if resp.status_code not in {200, 202, 404}:
             log.warning(f"HTTP {request.method} {request.url} -> {resp.status_code}")
     finally:
         concurrent_sem.release()
