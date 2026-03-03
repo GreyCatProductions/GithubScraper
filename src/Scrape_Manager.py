@@ -1,12 +1,10 @@
 import csv
 from pathlib import Path
 from threading import Semaphore
-from typing import List
 import pandas as pd
 import os
 import schema.ColumnsMap as ColumnsMap
 from Formaters import *
-from Logger import log
 import csv
 from github.Repository import Repository
 from github import Github
