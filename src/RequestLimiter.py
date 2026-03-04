@@ -108,9 +108,13 @@ def _patched_send(self, request, **kwargs):
         except ValueError:
             log.warning(f"RateLimit remaining header (non-int): {remaining_raw}")
 
-    if resp.status_code == 403 or resp.status_code == 429:
+    if resp.status_code == 403 or resp.status_code == 429: #same error codes for primary and secondary key. So taking expecting worst case of secondary exceeded
         with _global_block_lock:
-            new_block = time.time() + BLOCK_SECONDS
+            time_to_sleep_req = resp.headers.get("retry-after")
+            
+            time_to_sleep = BLOCK_SECONDS if not time_to_sleep_req else float(time_to_sleep_req) + 10
+                
+            new_block = time.time() + time_to_sleep
             if new_block > _global_blocked_until:
                 _global_blocked_until = new_block
                 log.warning(f"GLOBAL PAUSE for {BLOCK_SECONDS}s")
