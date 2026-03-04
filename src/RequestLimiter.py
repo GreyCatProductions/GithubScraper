@@ -90,6 +90,8 @@ def _patched_send(self, request, **kwargs):
     
     remaining_raw = resp.headers.get("X-RateLimit-Remaining")
     reset_time_raw = resp.headers.get("X-RateLimit-Reset")
+    auth = request.headers.get("Authorization", "")
+    token_hint = auth[-4:] if len(auth) >= 4 else "?"
     
     if remaining_raw is not None:
         try:
@@ -100,7 +102,7 @@ def _patched_send(self, request, **kwargs):
                         reset_time = int(reset_time_raw)   
                         offset = 60
                         sleep_time = max(reset_time - time.time() + offset, 0)
-                        log.info(f"Sleeping for {sleep_time}s — tickets left = {remaining} / {WAIT_BELOW_PRIMARY_LIMIT}")
+                        log.info(f"Sleeping for {sleep_time}s — tickets left = {remaining} / {WAIT_BELOW_PRIMARY_LIMIT} (token ...{token_hint})")
                         time.sleep(sleep_time)
 
                     except ValueError:
