@@ -19,7 +19,7 @@ BLOCK_SECONDS = 70
 MAX_CONCURRENT_REQUESTS = 5
 WAIT_BELOW_PRIMARY_LIMIT = 100
 MAX_REQUESTS_PER_MINUTE = 800 #api limit is 900
-MAX_REQUESTS_PER_SECOND = 10 #theoretically its max reqeusts p minute / 60
+MAX_REQUESTS_PER_SECOND = 10 #theoretically its max requests per minute / 60
 
 concurrent_sem: Semaphore = Semaphore(MAX_CONCURRENT_REQUESTS)
 
