@@ -27,7 +27,7 @@ def write_csv(data, columns, filepath, sep=";"):
             log.error(f"Failed to create csv with columns: {columns}: " + str(e))
 
 
-def process_repo(repository: Repository, repo_task: RepoTask, path: Path):
+def process_repo(github: Github, repo_task: RepoTask, path: Path):
     data = {
         "organization_repos": [],
         "issues": [],
@@ -40,41 +40,33 @@ def process_repo(repository: Repository, repo_task: RepoTask, path: Path):
         "pulls": [],
     }
 
-    if not repo_task.github:
-        raise Exception("Cant process repo with given Github object NULL")
-    
-    thread_id = repo_task.thread_id
-    github: Github = repo_task.github
-    org_name: str = str(repo_task.organization.name)
+    repository: Repository = github.get_repo(repo_task.id)
+    org_name: str = str(repository.owner.login)
 
     log.info(f"Processing repo {repository.name} | org={org_name}")
 
     repo_data, summary_data = get_formatted_repository_data(
-        repository, org_name, thread_id
+        repository, org_name
     )
     data["organization_repos"].append(repo_data)
     data["repos"].append(summary_data)
-    data["issues"].extend(get_formatted_issues(repository, github, thread_id))
+    data["issues"].extend(get_formatted_issues(repository))
     log.info("issues processed")
-    data["branches"].extend(get_formatted_branches(repository, github, thread_id))
+    data["branches"].extend(get_formatted_branches(repository))
     log.info("branches processed")
-    data["contributions"].extend(
-        get_formatted_contributions(
-            repository, org_name, github, thread_id
-        )
-    )
+    data["contributions"].extend(get_formatted_contributions(repository, org_name))
     log.info("contributions processed")
-    data["users"].extend(get_formatted_users(repository, github, thread_id))
+    data["users"].extend(get_formatted_users(repository))
     log.info("users processed")
     data["forks"].extend(
-        get_formatted_forks(repository, org_name, github, thread_id)
+        get_formatted_forks(repository, org_name)
     )
     log.info("forks processed")
     data["pulls"].extend(
-        get_formatted_pulls(repository, org_name, github, thread_id)
+        get_formatted_pulls(repository, org_name)
     )
     log.info("pulls processed")
-    data["commits"].extend(get_formatted_commits(repository, org_name, thread_id))
+    data["commits"].extend(get_formatted_commits(repository, org_name))
     log.info("commits processed")
 
     log.info(f"Finished processing {repository.name} of organization {org_name}.")

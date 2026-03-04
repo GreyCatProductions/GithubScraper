@@ -21,14 +21,13 @@ from RetryWrapper import retry_request
 
 log = get_logger(__name__)
 
-def get_organization(organization_name: str, github: Github, scraper_nr):
+
+def get_organization(organization_name: str, github: Github):
     try:
-        return retry_request(
-            github.get_organization, github, scraper_nr, organization_name
-        )
+        return retry_request(github.get_organization, organization_name)
     except UnknownObjectException:
         try:
-            return retry_request(github.get_user, github, scraper_nr, organization_name)
+            return retry_request(github.get_user, organization_name)
         except UnknownObjectException:
             log.error(f"Neither org nor user found: {organization_name}")
             return None
@@ -37,41 +36,37 @@ def get_organization(organization_name: str, github: Github, scraper_nr):
             return None
 
 
-def get_formatted_issues(repository: Repository, github_gmail, scraper_nr):
+def get_formatted_issues(repository: Repository):
     issues = []
-    issue_iter = retry_request(
-        repository.get_issues, github_gmail, scraper_nr, state="all"
-    )
+    issue_iter = retry_request(repository.get_issues, state="all")
     if not issue_iter:
         log.error(f"Could not fetch issues for {repository.full_name}")
         return issues
 
     for issue in issue_iter:
         try:
-            formatted_issue = retry_request(
-                _format_issue, github_gmail, scraper_nr, repository.name, issue
-            )
+            formatted_issue = retry_request(_format_issue, repository.name, issue)
             if formatted_issue:
                 issues.append(formatted_issue)
         except Exception as e:
-            log.warning(f"Failed to format issue {getattr(issue, 'number', '?')}: {e}. Skipping it")
+            log.warning(
+                f"Failed to format issue {getattr(issue, 'number', '?')}: {e}. Skipping it"
+            )
 
     return issues
 
 
-def get_formatted_branches(repository: Repository, github_gmail: Github, scraper_nr):
+def get_formatted_branches(repository: Repository):
     branches: list = []
 
-    branch_iter = retry_request(repository.get_branches, github_gmail, scraper_nr)
+    branch_iter = retry_request(repository.get_branches)
     if not branch_iter:
         log.error(f"Could not fetch branches for {repository.full_name}")
         return branches
 
     for branch in branch_iter:
         try:
-            formatted = retry_request(
-                _format_branch, github_gmail, scraper_nr, repository, branch
-            )
+            formatted = retry_request(_format_branch, repository, branch)
             if formatted:
                 branches.append(formatted)
         except Exception as e:
@@ -84,13 +79,11 @@ def get_formatted_branches(repository: Repository, github_gmail: Github, scraper
 
 
 def get_formatted_contributions(
-    repository: Repository, organization_name: str, github_gmail, scraper_nr
+    repository: Repository, organization_name: str
 ):
     def fallback(error: str):
         formatted = retry_request(
             _format_contributors,
-            github_gmail,
-            scraper_nr,
             organization_name,
             repository,
             None,
@@ -102,9 +95,7 @@ def get_formatted_contributions(
         return [formatted]
 
     try:
-        stats_contributors = retry_request(
-            repository.get_stats_contributors, github_gmail, scraper_nr
-        )
+        stats_contributors = retry_request(repository.get_stats_contributors)
     except GithubException as ge:
         if ge.status in {500, 502}:
             return fallback(str(ge.status))
@@ -121,8 +112,6 @@ def get_formatted_contributions(
         try:
             formatted = retry_request(
                 _format_contributors,
-                github_gmail,
-                scraper_nr,
                 organization_name,
                 repository,
                 contributor,
@@ -138,20 +127,18 @@ def get_formatted_contributions(
     return contributions
 
 
-def get_formatted_users(repository: Repository, github_gmail, scraper_nr):
+def get_formatted_users(repository: Repository):
     users = []
 
     try:
-        users_fetch = retry_request(repository.get_contributors, github_gmail, scraper_nr)
+        users_fetch = retry_request(repository.get_contributors)
         if not users_fetch:
             log.warning("Failed to fetch users!")
             return []
-        
+
         for user in users_fetch:
             try:
-                formatted_user = retry_request(
-                    _format_user, github_gmail, scraper_nr, repository, user
-                )
+                formatted_user = retry_request(_format_user, repository, user)
                 if formatted_user:
                     users.append(formatted_user)
             except Exception as e:
@@ -161,9 +148,7 @@ def get_formatted_users(repository: Repository, github_gmail, scraper_nr):
     return users
 
 
-def get_formatted_forks(
-    repository: Repository, organization_name: str, github_gmail, scraper_nr
-):
+def get_formatted_forks(repository: Repository, organization_name: str):
     def safe_try_fork(fork: Repository):
         try:
             fork_owner: NamedUser | None = fork.owner
@@ -197,26 +182,26 @@ def get_formatted_forks(
             fork_subs = None
 
         formated = _format_fork(
-                organization_name,
-                repository,
-                fork,
-                fork_owner,
-                fork_owner_id,
-                fork_owner_login,
-                fork_subs,
-                commits_ahead,
-                commits_behind,
-            )
+            organization_name,
+            repository,
+            fork,
+            fork_owner,
+            fork_owner_id,
+            fork_owner_login,
+            fork_subs,
+            commits_ahead,
+            commits_behind,
+        )
         return formated
-        
+
     forks = []
-    forks_iter = retry_request(repository.get_forks, github_gmail, scraper_nr)
+    forks_iter = retry_request(repository.get_forks)
     if not forks_iter:
         log.error("Failed to get forks")
         return []
-        
+
     for fork in forks_iter:
-        formated_fork = retry_request(safe_try_fork, github_gmail, scraper_nr, fork)
+        formated_fork = retry_request(safe_try_fork, fork)
         if not formated_fork:
             log.error(f"Failed to get fork {fork.name}. Skipping it")
             continue
@@ -224,49 +209,40 @@ def get_formatted_forks(
     return forks
 
 
-def get_formatted_pulls(
-    repository: Repository, organization_name: str, github_gmail, scraper_nr
-):
+def get_formatted_pulls(repository: Repository, organization_name: str):
     pulls = []
-    pulls_iter = retry_request(repository.get_pulls, github_gmail, scraper_nr, state="all")
+    pulls_iter = retry_request(repository.get_pulls, state="all")
     if not pulls_iter:
         log.warning(f"Failed to get pulls for {repository.name}. Skipping it")
         return []
-    
+
     for pull in pulls_iter:
         try:
             formatted_pull = retry_request(
                 _format_pull,
-                github_gmail,
-                scraper_nr,
                 organization_name,
                 repository,
                 pull,
             )
             if formatted_pull is not None:
                 pulls.append(formatted_pull)
-                
+
         except Exception as e:
             log.warning(f"Failed to get pull {e}. Skipping it")
     return pulls
 
 
 def get_formatted_commits(
-    repository: Repository, organization_name: str, scraper_nr: int
-):
+    repository: Repository, organization_name: str):
     formatted_commits = []
-    with tempfile.TemporaryDirectory() as tmp_dir_name:
+    with tempfile.TemporaryDirectory() as tmp_dir:
         repo_clone = None
-        tmp_dir = pathlib.Path(os.path.join(tmp_dir_name, str(scraper_nr)))
         try:
             LGitRepo.clone_from(repository.clone_url, f"{tmp_dir}")
         except GitError:
             log.warning(f"Likely already exists repo: {repository.name}")
         except Exception as e:
             log.error(f"An exception occurred for Repo: {repository.name} {e}")
-            
-        if not tmp_dir or not tmp_dir.exists():
-            return []
 
         try:
             repo_clone = LGitRepo(tmp_dir)
@@ -276,18 +252,20 @@ def get_formatted_commits(
                         _format_commit(organization_name, repository, commit)
                     )
                 except Exception as e:
-                    log.warning(f"Failed to process commit ({commit.binsha.hex()}) for {organization_name}")
+                    log.warning(
+                        f"Failed to process commit ({commit.binsha.hex()}) for {organization_name}"
+                    )
         except Exception as e:
             log.error(f"Failed to process commits for {repository.name}: {e}")
         finally:
             if repo_clone is not None:
                 repo_clone.close()
-            time.sleep(1)
+
     return formatted_commits
 
 
 def get_formatted_repository_data(
-    repository: Repository, organization_name: str, scraper_nr: int
+    repository: Repository, organization_name: str
 ) -> tuple:
     try:
         readme = _get_readme(repository)
@@ -420,9 +398,10 @@ def _format_contributors(
         return [
             organization_name,
             repository.name,
-            "ERROR",
             error_message,
-            datetime.now(),
+            error_message,
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            error_message
         ]
 
     return [
@@ -430,7 +409,7 @@ def _format_contributors(
         repository.name,
         contributor.author.login,
         contributor.total,
-        datetime.now(),
+        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         contributor.author.id,
     ]
 
@@ -528,7 +507,7 @@ def _format_pull(organization_name: str, repo: Repository, pull: PullRequest) ->
         pull.user.login,
         pull.user.id,
         pull.last_modified,
-        pull.assignee,
+        pull.assignee.login,
         pull.assignees,
         pull.comments,
         pull.title,
@@ -540,8 +519,8 @@ def _format_pull(organization_name: str, repo: Repository, pull: PullRequest) ->
 def _format_commit(
     organization_name: str, repo: Repository, commit: LGitCommit
 ) -> list:
-    author_login = getattr(commit.author, "login", None)
-    committer_login = getattr(commit.committer, "login", None)
+    author_login = commit.author.name
+    committer_login = commit.committer.name
     return [
         organization_name,
         repo.name,

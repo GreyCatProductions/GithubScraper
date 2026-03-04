@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from threading import Lock
-from typing import List, Tuple
+from typing import Dict, List, Set, Tuple
 from github import Github
 from github.Organization import Organization
 from github.AuthenticatedUser import AuthenticatedUser
@@ -18,12 +18,10 @@ class Status(Enum):
 
 @dataclass(slots=True)
 class RepoTask:
-    organization: Organization | NamedUser | AuthenticatedUser
-    thread_id: int = -1 #what thread works on me
+    id: int
     retry_count: int = 0 #how many retries happened
     _state: Status = Status.AVAILABLE #what state
-    github: Github | None = None
-    
+
     def complete(self):
         self._state = Status.DONE
         
@@ -33,20 +31,13 @@ class RepoTask:
 
 @dataclass(slots=True)
 class OrgSmartTask:
-    organization: Organization | NamedUser | AuthenticatedUser
-    repos: PaginatedList[Repository]
-    offset: int
     org_path: Path
-    _repo_tasks: List[RepoTask] = field(init=False)
+    repo_tasks: List[RepoTask] #sorted by id
+    
     _lock: Lock = field(default_factory=Lock, init=False)
     _activate_workers: int = 0
     _retries: int = 0
     
-    def __post_init__(self) -> None:
-        self._repo_tasks = [RepoTask(organization=self.organization) for _ in range(self.repos.totalCount)]
-        for i in range(self.offset):
-            self._repo_tasks[i]._state = Status.DONE
-
     def acquire_slot(self) -> None:
         with self._lock:
             self._activate_workers += 1
@@ -67,12 +58,11 @@ class OrgSmartTask:
         with self._lock:
             return self._activate_workers
     
-    def claim_available_repo(self) -> Tuple[Repository | None, RepoTask | None, int | None]:
+    def claim_available_repo_task(self) -> RepoTask | None:
         with self._lock:
-            for i in range(self.offset, len(self._repo_tasks)):
-                repo_task = self._repo_tasks[i]
+            for repo_task in self.repo_tasks:
                 if repo_task._state == Status.AVAILABLE:
                     repo_task._state = Status.DOING
-                    return (self.repos[i], repo_task, i)
+                    return repo_task
                 
-            return None, None, None
+            return None

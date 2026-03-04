@@ -28,60 +28,58 @@ log = get_logger(__name__)
 
 orgTasks: List[OrgSmartTask] = []
 
-def handle_org_task(repo: Repository, repoTask: RepoTask, orgTask: OrgSmartTask, token_id: int, github: Github, pbar: tqdm):
-    repoTask.thread_id = token_id
-    repoTask.github = github
+def handle_org_task(repoTask: RepoTask, orgTask: OrgSmartTask, github: Github, pbar: tqdm):
     save_path: Path = orgTask.org_path
-    
     orgTask.acquire_slot()
+    
     try:
         while True:
             try:
-                process_repo(repo, repoTask, save_path)
+                process_repo(github, repoTask, save_path)
                 repoTask.complete()
                 pbar.update(1)
                 break
             except Exception as e:
-                log.error(f"[Retry {repoTask.retry_count} / {MAX_RETRIES_PER_REPO}] Unexpected Error on repository: " + repo.name + " " + str(e),)
-                
                 repoTask.retry_count += 1
+                log.error(f"[Retry {repoTask.retry_count} / {MAX_RETRIES_PER_REPO}] Unexpected Error on repository: " + str(repoTask.id) + " " + str(e),)
+                
                 if repoTask.retry_count >= MAX_RETRIES_PER_REPO:
-                    log.error(f"repository: " + repo.name + "reached max amount of retries. Killing it",)
+                    log.error(f"repository: " + str(repoTask.id) + " reached max amount of retries. Killing it",)
                     repoTask.kill()
                     pbar.update(1)
                     break
     
     except Exception as e:
-        log.error(f"Unexpected error while handling repo {repo.name}!")
+        log.error(f"Unexpected error while handling repo {str(repoTask.id)}!")
         return
     finally:
         orgTask.release_slot()
 
-def worker(github: Github, token_id: int, pbar: tqdm):
+def worker(github: Github, pbar: tqdm):
     while True:
-        repo, repoTask, orgTask = None, None, None
+        repoTask, orgTask = None, None
         for iterOrgTask in orgTasks:
             if iterOrgTask.get_activate_workers_snapshot() < MAX_THREADS_PER_ORG:
-                repo, repoTask, index = iterOrgTask.claim_available_repo() #lock happens automatically if not None returned
-                if not repo or not repoTask:
+                repoTask: RepoTask | None = iterOrgTask.claim_available_repo_task() #lock happens automatically if not None returned
+                if not repoTask:
                     continue
                 
                 orgTask = iterOrgTask
                 break
                 
-        if not repo or not repoTask or not orgTask: 
+        if not repoTask or not orgTask: 
             log.info("Could not find any task to do. Shuting down")
             return
         
-        handle_org_task(repo, repoTask, orgTask, token_id, github, pbar)
+        handle_org_task(repoTask, orgTask, github, pbar)
 
 def main():
     tokens_raw = os.getenv("GITHUB_TOKENS", "")
     organizations_raw = os.getenv("ORGANIZATIONS", "")
     tokens_list = [t.strip() for t in tokens_raw.split(",") if t.strip()]
     organizations = [org.strip() for org in organizations_raw.split(",") if org.strip()]
-    github_tokens: list[Github] = [Github(token) for token in tokens_list]
-    available_tokens = len(github_tokens)
+    githubs: list[Github] = [Github(token, per_page=100) for token in tokens_list]
+    available_tokens = len(githubs)
     if available_tokens <= 0:
         raise Exception("No tokens loaded!")
     
@@ -89,15 +87,15 @@ def main():
     log.info(f"Loaded {len(organizations)} organizations.")
     
     global orgTasks
-    orgTasks = prepare_tasks(organizations, github_tokens, PATH_TO_GITHUB_DATA) #blocking, uses all available threads to fetch repos and only add the ones that are not already processed
+    orgTasks = prepare_tasks(organizations, githubs, PATH_TO_GITHUB_DATA) #blocking, uses all available threads to fetch repos and only add the ones that are not already processed
 
-    total_repos = sum(orgTask.repos.totalCount - orgTask.offset for orgTask in orgTasks)
+    total_repos = sum(len(orgTask.repo_tasks) for orgTask in orgTasks)
 
     threads = []
 
     with tqdm(total=total_repos, unit="repo", desc="Scraping") as pbar:
-        for i in range(len(github_tokens)):
-            t = Thread(target=worker, args=((github_tokens[i], i, pbar)))
+        for i in range(len(githubs)):
+            t = Thread(target=worker, args=((githubs[i], pbar)))
             t.start()
             threads.append(t)
 
