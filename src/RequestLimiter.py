@@ -117,7 +117,7 @@ def _patched_send(self, request, **kwargs):
             new_block = time.time() + time_to_sleep
             if new_block > _global_blocked_until:
                 _global_blocked_until = new_block
-                log.warning(f"GLOBAL PAUSE for {BLOCK_SECONDS}s")
+                log.warning(f"GLOBAL PAUSE for {time_to_sleep}s")
 
     return resp
 
