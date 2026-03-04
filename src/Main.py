@@ -1,3 +1,5 @@
+import requests
+
 from RequestLimiter import install
 install() #must be before github imports
 
@@ -72,13 +74,27 @@ def worker(github: Github, pbar: tqdm):
             return
         
         handle_org_task(repoTask, orgTask, github, pbar)
+        
+def check_token(token):
+    response = requests.get(
+        "https://api.github.com/user",
+        headers={"Authorization": f"token {token}"}
+    )
+    return response.status_code
 
 def main():
     tokens_raw = os.getenv("GITHUB_TOKENS", "")
     organizations_raw = os.getenv("ORGANIZATIONS", "")
-    tokens_list = [t.strip() for t in tokens_raw.split(",") if t.strip()]
+    unchecked_tokens_list = [t.strip() for t in tokens_raw.split(",") if t.strip()]
+    
+    valid_tokens = []
+    for token in unchecked_tokens_list:
+        if check_token(token) == 200:
+            valid_tokens.append(token)
+    
+    
     organizations = [org.strip() for org in organizations_raw.split(",") if org.strip()]
-    githubs: list[Github] = [Github(token, per_page=100) for token in tokens_list]
+    githubs: list[Github] = [Github(token, per_page=100) for token in valid_tokens]
     available_tokens = len(githubs)
     if available_tokens <= 0:
         raise Exception("No tokens loaded!")
