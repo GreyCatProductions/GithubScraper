@@ -507,7 +507,7 @@ def _format_pull(organization_name: str, repo: Repository, pull: PullRequest) ->
         pull.user.login,
         pull.user.id,
         pull.last_modified,
-        pull.assignee.login,
+        pull.assignee,
         pull.assignees,
         pull.comments,
         pull.title,
