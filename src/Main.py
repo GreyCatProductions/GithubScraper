@@ -10,7 +10,7 @@ from github.Repository import Repository
 from Logger import get_logger, setup_logging, setup_request_logging
 from ScrapeManager import process_repo
 from threading import Lock, Thread
-from github import Github
+from github import Github, Auth
 import csv
 from schema.ThreadTasks import OrgSmartTask, RepoTask
 from TaskPreparer import prepare_tasks
@@ -84,6 +84,7 @@ def check_token(token):
     return response.status_code
 
 def main():
+    log.info("Initializing")
     tokens_raw = os.getenv("GITHUB_TOKENS", "")
     organizations_raw = os.getenv("ORGANIZATIONS", "")
     unchecked_tokens_list = [t.strip() for t in tokens_raw.split(",") if t.strip()]
@@ -92,10 +93,12 @@ def main():
     for token in unchecked_tokens_list:
         if check_token(token) == 200:
             valid_tokens.append(token)
+        else: 
+            log.warning(f"Ignoring invalid token: {token}")
     
     
     organizations = [org.strip() for org in organizations_raw.split(",") if org.strip()]
-    githubs: list[Github] = [Github(token, per_page=100) for token in valid_tokens]
+    githubs: list[Github] = [Github(auth=Auth.Token(token), per_page=100) for token in valid_tokens]
     available_tokens = len(githubs)
     if available_tokens <= 0:
         raise Exception("No tokens loaded!")
@@ -112,7 +115,8 @@ def main():
 
     with tqdm(total=total_repos, unit="repo", desc="Scraping") as pbar:
         for i in range(len(githubs)):
-            t = Thread(target=worker, args=((githubs[i], pbar)))
+            log.info(f"Creating worker {i} with token {valid_tokens[i]}")
+            t = Thread(target=worker, args=(githubs[i], pbar))
             t.start()
             threads.append(t)
 
