@@ -91,18 +91,17 @@ def _patched_send(self, request, **kwargs):
     
     remaining_raw = resp.headers.get("X-RateLimit-Remaining")
     reset_time_raw = resp.headers.get("X-RateLimit-Reset")
-    auth = request.headers.get("Authorization", "")
-    token_hint = auth[-4:] if len(auth) >= 4 else "?"
-    
-    reset_dt = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(int(reset_time_raw))) if reset_time_raw else "?"
+    auth = request.headers.get("Authorization", "-")
+
+    reset_dt = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(int(reset_time_raw))) if reset_time_raw else "-"
     request_logger.info(
         f"HTTP {request.method} {request.url} -> {resp.status_code} | "
-        f"token=...{token_hint} | "
-        f"remaining={remaining_raw or '?'} | "
-        f"reset={reset_dt} | "
-        f"retry-after={resp.headers.get('retry-after', '-')} | "
-        f"content-type={resp.headers.get('content-type', '-')} | "
-        f"content-length={resp.headers.get('content-length', '-')}"
+        f"token=...{auth} | "
+        f"resource={resp.headers.get('X-RateLimit-Resource', '-')} | "
+        f"used={resp.headers.get('X-RateLimit-Used', '-')} | "
+        f"remaining={remaining_raw or '-'} | "
+        f"limit={resp.headers.get('X-RateLimit-Limit', '-')} | "
+        f"reset={reset_dt}"
     )
     
     if remaining_raw is not None:
@@ -114,7 +113,7 @@ def _patched_send(self, request, **kwargs):
                         reset_time = int(reset_time_raw)   
                         offset = 60
                         sleep_time = max(reset_time - time.time() + offset, 0)
-                        log.info(f"Sleeping for {sleep_time}s — tickets left = {remaining} / {WAIT_BELOW_PRIMARY_LIMIT} (token ...{token_hint})")
+                        log.info(f"Sleeping for {sleep_time}s — tickets left = {remaining} / {WAIT_BELOW_PRIMARY_LIMIT} (token ...{auth or "?"})")
                         time.sleep(sleep_time)
 
                     except ValueError:
