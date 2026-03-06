@@ -83,7 +83,7 @@ def setup_request_logging(
 
 
 def get_request_logger() -> logging.Logger:
-    return logging.getLogger("requests_spam")
+    return logging.getLogger("all_requests")
 
 
 def get_logger(name: str | None = None) -> logging.Logger:
