@@ -278,10 +278,9 @@ def get_formatted_repository_data(
         created_at = "Error"
         updated_at = "Error"
         pushed_at = "Error"
-    try:
-        license_val = repository.get_license()
-        license_val = license_val.license.key
-    except UnknownObjectException:
+    if repository.license:
+        license_val = repository.license.key
+    else:
         license_val = "None"
     cur_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     try:
