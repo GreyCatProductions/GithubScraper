@@ -1,7 +1,7 @@
 import os.path
 import time
 from datetime import datetime
-from github import Github
+from github import Github, PaginatedList
 from github.Branch import Branch
 from github.Repository import Repository
 from github.Issue import Issue
@@ -213,7 +213,6 @@ def get_formatted_pulls(repository: Repository, organization_name: str):
     pulls = []
     pulls_iter = retry_request(repository.get_pulls, state="all")
     if not pulls_iter:
-        log.warning(f"Failed to get pulls for {repository.name}. Skipping it")
         return []
 
     for pull in pulls_iter:
