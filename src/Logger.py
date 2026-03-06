@@ -56,5 +56,35 @@ def setup_logging(
     root.addHandler(fh)
 
 
+def setup_request_logging(
+    log_file: str = "logs/requests.log",
+    max_bytes: int = 20_000_000,
+    backup_count: int = 1,
+) -> None:
+    logger = logging.getLogger("all_requests")
+    if logger.handlers:
+        return
+
+    logger.setLevel(logging.DEBUG)
+    logger.propagate = False  
+
+    base_dir = Path(__file__).resolve().parents[1]
+    log_path = base_dir / log_file
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    fmt = "%(asctime)s [%(threadName)s]: %(message)s"
+    datefmt = "%Y-%m-%d %H:%M:%S"
+
+    fh = RotatingFileHandler(
+        log_path, maxBytes=max_bytes, backupCount=backup_count, encoding="utf-8"
+    )
+    fh.setFormatter(logging.Formatter(fmt, datefmt=datefmt))
+    logger.addHandler(fh)
+
+
+def get_request_logger() -> logging.Logger:
+    return logging.getLogger("requests_spam")
+
+
 def get_logger(name: str | None = None) -> logging.Logger:
     return logging.getLogger(name or __name__)

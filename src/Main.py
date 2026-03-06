@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 from typing import List
 from github.Repository import Repository
-from Logger import get_logger, setup_logging
+from Logger import get_logger, setup_logging, setup_request_logging
 from ScrapeManager import process_repo
 from threading import Lock, Thread
 from github import Github
@@ -23,7 +23,8 @@ MAX_RETRIES_PER_REPO = 5
 PATH_TO_GITHUB_DATA = Path("../github_data")
 
 load_dotenv()
-setup_logging(level=logging.INFO) 
+setup_logging()
+setup_request_logging()
 csv.field_size_limit(100000000)
 
 log = get_logger(__name__)

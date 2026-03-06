@@ -2,9 +2,10 @@ from threading import Semaphore, Lock
 import time
 import requests
 from urllib.parse import urlparse
-from Logger import get_logger
+from Logger import get_logger, get_request_logger
 
 log = get_logger(__name__)
+request_logger = get_request_logger()
 
 _original_send = requests.Session.send
 _global_block_lock = Lock()
@@ -82,7 +83,7 @@ def _patched_send(self, request, **kwargs):
     
     try:
         resp = _original_send(self, request, **kwargs)
-        
+    
         if resp.status_code not in {200, 202, 404}:
             log.warning(f"HTTP {request.method} {request.url} -> {resp.status_code}")
     finally:
@@ -92,6 +93,17 @@ def _patched_send(self, request, **kwargs):
     reset_time_raw = resp.headers.get("X-RateLimit-Reset")
     auth = request.headers.get("Authorization", "")
     token_hint = auth[-4:] if len(auth) >= 4 else "?"
+    
+    reset_dt = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(int(reset_time_raw))) if reset_time_raw else "?"
+    request_logger.info(
+        f"HTTP {request.method} {request.url} -> {resp.status_code} | "
+        f"token=...{token_hint} | "
+        f"remaining={remaining_raw or '?'} | "
+        f"reset={reset_dt} | "
+        f"retry-after={resp.headers.get('retry-after', '-')} | "
+        f"content-type={resp.headers.get('content-type', '-')} | "
+        f"content-length={resp.headers.get('content-length', '-')}"
+    )
     
     if remaining_raw is not None:
         try:
