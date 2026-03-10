@@ -234,31 +234,40 @@ def get_formatted_pulls(repository: Repository, organization_name: str):
 def get_formatted_commits(
     repository: Repository, organization_name: str):
     formatted_commits = []
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        repo_clone = None
-        try:
-            LGitRepo.clone_from(repository.clone_url, f"{tmp_dir}")
-        except GitError:
-            log.warning(f"Likely already exists repo: {repository.name}")
-        except Exception as e:
-            log.error(f"An exception occurred for Repo: {repository.name} {e}")
+    tmp_dir = pathlib.Path(tempfile.gettempdir()) / f"githubscraper_{repository.id}"
 
-        try:
-            repo_clone = LGitRepo(tmp_dir)
-            for commit in repo_clone.iter_commits():
-                try:
-                    formatted_commits.append(
-                        _format_commit(organization_name, repository, commit)
-                    )
-                except Exception as e:
-                    log.warning(
-                        f"Failed to process commit ({commit.binsha.hex()}) for {organization_name}"
-                    )
-        except Exception as e:
-            log.error(f"Failed to process commits for {repository.name}: {e}")
-        finally:
-            if repo_clone is not None:
-                repo_clone.close()
+    if tmp_dir.exists():
+        shutil.rmtree(tmp_dir)
+
+    repo_clone = None
+    try:
+        LGitRepo.clone_from(repository.clone_url, str(tmp_dir))
+    except GitError:
+        log.warning(f"Likely already exists repo: {repository.name}")
+    except Exception as e:
+        log.error(f"An exception occurred for Repo: {repository.name} {e}")
+
+    if not tmp_dir.exists():
+        return []
+
+    try:
+        repo_clone = LGitRepo(tmp_dir)
+        for commit in repo_clone.iter_commits():
+            try:
+                formatted_commits.append(
+                    _format_commit(organization_name, repository, commit)
+                )
+            except Exception as e:
+                log.warning(
+                    f"Failed to process commit ({commit.binsha.hex()}) for {organization_name}"
+                )
+    except Exception as e:
+        log.error(f"Failed to process commits for {repository.name}: {e}")
+    finally:
+        if repo_clone is not None:
+            repo_clone.close()
+        if tmp_dir.exists():
+            shutil.rmtree(tmp_dir)
 
     return formatted_commits
 
