@@ -1,4 +1,3 @@
-import os.path
 import time
 from datetime import datetime
 from github import Github, PaginatedList
@@ -18,6 +17,7 @@ import tempfile
 from Logger import get_logger
 from collections import defaultdict
 from RetryWrapper import retry_request
+import shutil
 
 log = get_logger(__name__)
 
