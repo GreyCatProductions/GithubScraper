@@ -98,7 +98,7 @@ def main():
     
     
     organizations = [org.strip() for org in organizations_raw.split(",") if org.strip()]
-    githubs: list[Github] = [Github(auth=Auth.Token(token), per_page=100) for token in valid_tokens]
+    githubs: list[Github] = [Github(auth=Auth.Token(token), per_page=100) for token in set(valid_tokens)]
     available_tokens = len(githubs)
     if available_tokens <= 0:
         raise Exception("No tokens loaded!")
