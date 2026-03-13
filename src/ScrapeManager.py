@@ -42,8 +42,10 @@ def process_repo(github: Github, repo_task: RepoTask, path: Path):
 
     repository: Repository = github.get_repo(repo_task.id)
     org_name: str = str(repository.owner.login)
+    repo_name: str = repository.name
+    tag = f"[{org_name}/{repo_name}]"
 
-    log.info(f"Processing repo {repository.name} | org={org_name}")
+    log.info(f"Processing repo {tag}")
 
     repo_data, summary_data = get_formatted_repository_data(
         repository, org_name
@@ -51,25 +53,25 @@ def process_repo(github: Github, repo_task: RepoTask, path: Path):
     data["organization_repos"].append(repo_data)
     data["repos"].append(summary_data)
     data["issues"].extend(get_formatted_issues(repository))
-    log.info("issues processed")
+    log.info(f"issues processed {tag}")
     data["branches"].extend(get_formatted_branches(repository))
-    log.info("branches processed")
+    log.info(f"branches processed {tag}")
     data["contributions"].extend(get_formatted_contributions(repository, org_name))
-    log.info("contributions processed")
+    log.info(f"contributions processed {tag}")
     data["users"].extend(get_formatted_users(repository))
-    log.info("users processed")
+    log.info(f"users processed {tag}")
     data["forks"].extend(
         get_formatted_forks(repository, org_name)
     )
-    log.info("forks processed")
+    log.info(f"forks processed {tag}")
     data["pulls"].extend(
         get_formatted_pulls(repository, org_name)
     )
-    log.info("pulls processed")
+    log.info(f"pulls processed {tag}")
     data["commits"].extend(get_formatted_commits(repository, org_name))
-    log.info("commits processed")
+    log.info(f"commits processed {tag}")
 
-    log.info(f"Finished processing {repository.name} of organization {org_name}.")
+    log.info(f"Finished processing {tag}")
 
     for key, columns in ColumnsMap.COLUMNS_MAP.items():
         csv_file = os.path.join(path, f"{key}.csv")

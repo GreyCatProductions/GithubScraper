@@ -79,8 +79,7 @@ def _prepare_organization_task(
             
             target.append(new_org_task)
             log.info(
-                f"Successfully fetched {len(repo_ids)} repo ids, automatically completed {counter} of them as \
-                their id already exists in save and prepared task object for: {org}"
+                f"Successfully fetched {len(repo_ids)} repo ids, automatically completed {counter} of them as their id already exists in save and prepared task object for: {org}"
             )
 
         except Exception as e:
@@ -117,12 +116,15 @@ def _complete_already_finished_tasks(tasks: List[RepoTask], org_path: Path) -> i
     csv_path = os.path.join(org_path, "organization_repos.csv")
     counter = 0
 
+    log.info(f"Checking if {csv_path} exists")
     if os.path.exists(csv_path):
         with open(csv_path, mode="r", encoding="utf-8") as file:
             scraped_ids: Set[int] = {
                 int(row[COMPARE_HEADER])
                 for row in csv.DictReader(file, delimiter=";")
             }
+        
+        log.info(f"Found {len(scraped_ids)} already existing organization repo ids")
 
         for task in tasks:
             if task.id in scraped_ids:

@@ -20,7 +20,7 @@ import os
 
 MAX_THREADS_PER_ORG = 12
 MAX_RETRIES_PER_REPO = 5
-PATH_TO_GITHUB_DATA = Path("../github_data")
+PATH_TO_GITHUB_DATA = Path(__file__).resolve().parents[1] / "github_data"
 
 load_dotenv()
 setup_logging()
