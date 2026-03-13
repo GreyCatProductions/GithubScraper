@@ -152,7 +152,7 @@ def get_formatted_forks(repository: Repository, organization_name: str):
     def safe_try_fork(fork: Repository):
         try:
             fork_owner: NamedUser | None = fork.owner
-        except Exception:
+        except Exception as e:
             fork_owner = None
 
         if fork_owner:
@@ -167,7 +167,7 @@ def get_formatted_forks(repository: Repository, organization_name: str):
                 f"{organization_name}:{repository.default_branch}",
                 fork.default_branch,
             )
-        except Exception:
+        except Exception as e:
             comparison = None
 
         commits_ahead = "No Comparison"
@@ -280,8 +280,8 @@ def get_formatted_repository_data(
         created_at = _check_none(repository.created_at)
         updated_at = _check_none(repository.updated_at)
         pushed_at = _check_none(repository.pushed_at)
-    except Exception:
-        log.error(f"Failed to get metadata for {repository.name}!")
+    except Exception as e:
+        log.error(f"Failed to get metadata for {repository.name} {str(e)}!")
         readme = "Error"
         created_at = "Error"
         updated_at = "Error"
@@ -526,8 +526,6 @@ def _format_pull(organization_name: str, repo: Repository, pull: PullRequest) ->
 def _format_commit(
     organization_name: str, repo: Repository, commit: LGitCommit
 ) -> list:
-    author_login = commit.author.name
-    committer_login = commit.committer.name
     return [
         organization_name,
         repo.name,
@@ -535,10 +533,10 @@ def _format_commit(
         commit.message,
         commit.author.name,
         commit.author.email,
-        author_login,
+        "",
         commit.committer.name,
         commit.committer.email,
-        committer_login,
+        "",
         commit.stats.total["deletions"],
         commit.stats.total["insertions"],
         _format_timestamp(commit.committed_datetime),

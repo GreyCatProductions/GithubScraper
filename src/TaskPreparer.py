@@ -36,7 +36,7 @@ def prepare_tasks(
     for i in range(len(tokens)):
         t = Thread(
             target=_prepare_organization_task,
-            args=((tokens[i], results, path_to_github_data, org_queue)),
+            args=(tokens[i], results, path_to_github_data, org_queue),
         )
         t.start()
         threads.append(t)

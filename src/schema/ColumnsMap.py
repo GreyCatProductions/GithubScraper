@@ -146,10 +146,10 @@ COLUMNS_MAP: Final = {
         "Commit Message",
         "Author Name",
         "Author Email",
-        "Author Login",
+        "Author Login",#doesnt seem to exist
         "Committer Name",
         "Commiter Email",
-        "Commiter Login",
+        "Commiter Login",#doesnt seem to exist
         "Deletions",
         "Additions",
         "Commit Date",
