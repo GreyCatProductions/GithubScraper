@@ -1,3 +1,4 @@
+import gc
 import time
 from datetime import datetime
 from github import Github, PaginatedList
@@ -12,23 +13,18 @@ from github import GithubException
 from git import Repo as LGitRepo
 from git import Commit as LGitCommit
 from git.exc import GitError
+from git.util import rmtree as git_rmtree
 from github.GithubException import UnknownObjectException
 import tempfile
 from Logger import get_logger
 from collections import defaultdict
 from RetryWrapper import retry_request
-import shutil
-import stat
-import os
 
 log = get_logger(__name__)
 
 
 def _rmtree(path):
-    def _handle_readonly(func, path, _):
-        os.chmod(path, stat.S_IWRITE)
-        func(path)
-    shutil.rmtree(path, onexc=_handle_readonly)
+    git_rmtree(str(path))
 
 
 def get_organization(organization_name: str, github: Github):
@@ -277,6 +273,10 @@ def get_formatted_commits(
     finally:
         if repo_clone is not None:
             repo_clone.close()
+            repo_clone = None 
+            time.sleep(0.1)
+        gc.collect() 
+        time.sleep(0.1)
         if tmp_dir.exists():
             _rmtree(tmp_dir)
 
