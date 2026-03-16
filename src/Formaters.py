@@ -57,6 +57,8 @@ def get_formatted_issues(repository: Repository):
             formatted_issue = retry_request(_format_issue, repository.name, issue)
             if formatted_issue:
                 issues.append(formatted_issue)
+        except GithubException as e:
+            pass #404 errors are dropped so they dont spam logs
         except Exception as e:
             log.warning(
                 f"Failed to format issue {getattr(issue, 'number', '?')}: {e}. Skipping it"
