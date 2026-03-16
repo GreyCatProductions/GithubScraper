@@ -18,8 +18,17 @@ from Logger import get_logger
 from collections import defaultdict
 from RetryWrapper import retry_request
 import shutil
+import stat
+import os
 
 log = get_logger(__name__)
+
+
+def _rmtree(path):
+    def _handle_readonly(func, path, _):
+        os.chmod(path, stat.S_IWRITE)
+        func(path)
+    shutil.rmtree(path, onexc=_handle_readonly)
 
 
 def get_organization(organization_name: str, github: Github):
@@ -237,7 +246,7 @@ def get_formatted_commits(
     tmp_dir = pathlib.Path(tempfile.gettempdir()) / f"githubscraper_{repository.id}"
 
     if tmp_dir.exists():
-        shutil.rmtree(tmp_dir)
+        _rmtree(tmp_dir)
 
     repo_clone = None
     try:
@@ -267,7 +276,7 @@ def get_formatted_commits(
         if repo_clone is not None:
             repo_clone.close()
         if tmp_dir.exists():
-            shutil.rmtree(tmp_dir)
+            _rmtree(tmp_dir)
 
     return formatted_commits
 
