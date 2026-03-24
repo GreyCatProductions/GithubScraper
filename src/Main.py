@@ -1,105 +1,129 @@
-import os
-from typing import Dict, List
-from Logger import log
-from Scrape_Manager import process_organization
-from threading import Lock, Thread
-from queue import Empty, Queue
-from github import Github
-from GitHubTokenReader import get_tokens
-import csv
-from CustomExceptions import TokenException, GithubFetchException
+import requests
 
+from RequestLimiter import install
+install() #must be before github imports
+
+import logging  
+from pathlib import Path
+from typing import List
+from github.Repository import Repository
+from Logger import get_logger, setup_logging, setup_request_logging
+from ScrapeManager import process_repo
+from threading import Lock, Thread
+from github import Github, Auth
+import csv
+from schema.ThreadTasks import OrgSmartTask, RepoTask
+from TaskPreparer import prepare_tasks
+from tqdm import tqdm
+from dotenv import load_dotenv
+import os
+
+MAX_THREADS_PER_ORG = 12
+MAX_RETRIES_PER_REPO = 5
+PATH_TO_GITHUB_DATA = Path(__file__).resolve().parents[1] / "github_data"
+
+load_dotenv()
+setup_logging()
+setup_request_logging()
 csv.field_size_limit(100000000)
 
-PATH_TO_ORGANIZATIONS = "../organizations.txt"
-MAX_RETRIES_PER_ORG = 5
-MAX_THREADS_PER_ORG = 3
+log = get_logger(__name__)
 
-retries_lock = Lock()
+orgTasks: List[OrgSmartTask] = []
 
+def handle_org_task(repoTask: RepoTask, orgTask: OrgSmartTask, github: Github, pbar: tqdm):
+    save_path: Path = orgTask.org_path
+    orgTask.acquire_slot()
+    
+    try:
+        while True:
+            try:
+                process_repo(github, repoTask, save_path)
+                repoTask.complete()
+                pbar.update(1)
+                break
+            except Exception as e:
+                repoTask.retry_count += 1
+                log.error(f"[Retry {repoTask.retry_count} / {MAX_RETRIES_PER_REPO}] Unexpected Error on repository: " + str(repoTask.id) + " " + str(e),)
+                
+                if repoTask.retry_count >= MAX_RETRIES_PER_REPO:
+                    log.error(f"repository: " + str(repoTask.id) + " reached max amount of retries. Killing it",)
+                    repoTask.kill()
+                    pbar.update(1)
+                    break
+    
+    except Exception as e:
+        log.error(f"Unexpected error while handling repo {str(repoTask.id)}!")
+        return
+    finally:
+        orgTask.release_slot()
 
-def token_worker(github: Github, org_queue: Queue[tuple[str, int]], token_id: int):
+def worker(github: Github, pbar: tqdm):
     while True:
-        try:
-            org, attempt = org_queue.get_nowait()
-        except Empty:
-            break
-
-        try:
-            log(token_id, "INFO", f"Starting to scrape organization: {org}")
-
-            path = f"../github_data/{org}"
-
-            os.makedirs(path, exist_ok=True)
-
-            process_organization(org, path, github, token_id)
-
-        except TokenException:
-            log(token_id, "ERROR", "Shutting down this thread; token likely dead")
-            org_queue.put((org, attempt + 1))
+        repoTask, orgTask = None, None
+        for iterOrgTask in orgTasks:
+            if iterOrgTask.get_activate_workers_snapshot() < MAX_THREADS_PER_ORG:
+                repoTask: RepoTask | None = iterOrgTask.claim_available_repo_task() #lock happens automatically if not None returned
+                if not repoTask:
+                    continue
+                
+                orgTask = iterOrgTask
+                break
+                
+        if not repoTask or not orgTask: 
+            log.info("Could not find any task to do. Shuting down")
             return
-
-        except GithubFetchException as e:
-            if attempt <= MAX_RETRIES_PER_ORG:
-                log(
-                    token_id,
-                    "WARNING",
-                    f"Retry {attempt}/{MAX_RETRIES_PER_ORG} for {org}: {e}",
-                )
-                org_queue.put((org, attempt + 1))
-            else:
-                log(
-                    token_id,
-                    "ERROR",
-                    f"Giving up on {org} after {MAX_RETRIES_PER_ORG} retries: {e}",
-                )
-
-        except Exception as e:
-            if attempt <= MAX_RETRIES_PER_ORG:
-                log(
-                    token_id,
-                    "ERROR",
-                    f"Unexpected error for {org}, retrying ({attempt}/{MAX_RETRIES_PER_ORG}): {e}",
-                )
-                org_queue.put((org, attempt + 1))
-            else:
-                log(
-                    token_id,
-                    "ERROR",
-                    f"Unexpected error for {org}, giving up after {MAX_RETRIES_PER_ORG}: {e}",
-                )
-
-        finally:
-            org_queue.task_done()
-
-
-def load_organizations() -> List[str]:
-    with open(PATH_TO_ORGANIZATIONS, "r", encoding="utf-8") as f:
-        return [line.strip() for line in f if line.strip()]
-
+        
+        handle_org_task(repoTask, orgTask, github, pbar)
+        
+def check_token(token):
+    response = requests.get(
+        "https://api.github.com/user",
+        headers={"Authorization": f"token {token}"}
+    )
+    return response.status_code
 
 def main():
-    organizations = load_organizations()
-    print(f"Loaded {len(organizations)} organizations.")
+    log.info("Initializing")
+    tokens_raw = os.getenv("GITHUB_TOKENS", "")
+    organizations_raw = os.getenv("ORGANIZATIONS", "")
+    unchecked_tokens_list = [t.strip() for t in tokens_raw.split(",") if t.strip()]
+    
+    valid_tokens = []
+    for token in unchecked_tokens_list:
+        if check_token(token) == 200:
+            valid_tokens.append(token)
+        else: 
+            log.warning(f"Ignoring invalid token: {token}")
+    
+    
+    organizations = [org.strip() for org in organizations_raw.split(",") if org.strip()]
+    githubs: list[Github] = [Github(auth=Auth.Token(token), per_page=100) for token in set(valid_tokens)]
+    available_tokens = len(githubs)
+    if available_tokens <= 0:
+        raise Exception("No tokens loaded!")
+    
+    log.info(f"Loaded {available_tokens} tokens.")
+    log.info(f"Loaded {len(organizations)} organizations.")
+    
+    global orgTasks
+    orgTasks = prepare_tasks(organizations, githubs, PATH_TO_GITHUB_DATA) #blocking, uses all available threads to fetch repos and only add the ones that are not already processed
 
-    org_queue: Queue[tuple[str, int]] = Queue()
-    for org in organizations:
-        org_queue.put((org, 0))
-
-    github_tokens: list[Github] = [Github(token) for token in get_tokens()]
-    available_tokens = len(github_tokens)
+    total_repos = sum(len(orgTask.repo_tasks) for orgTask in orgTasks)
 
     threads = []
 
-    for i in range(available_tokens):
-        t = Thread(target=token_worker, args=(github_tokens[i], org_queue, i))
-        t.start()
-        threads.append(t)
+    with tqdm(total=total_repos, unit="repo", desc="Scraping") as pbar:
+        for i in range(len(githubs)):
+            log.info(f"Creating worker {i} with token {valid_tokens[i]}")
+            t = Thread(target=worker, args=(githubs[i], pbar))
+            t.start()
+            threads.append(t)
 
-    for t in threads:
-        t.join()
-
-    print("All organizations processed.")
+        for t in threads:
+            t.join()
+        
+    log.info("All organizations processed. Finishing")
 
 
 if __name__ == "__main__":
